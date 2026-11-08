@@ -544,7 +544,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition"
             >
               <FileDown className="w-4 h-4" />
-              <span>Export PDF</span>
+              <span>Preview & Export PDF</span>
             </button>
           </div>
         </div>
@@ -1079,6 +1079,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       {showExportPdf && (
         <ExportPdfModal
           doc={doc}
+          initialPageIdx={safePageIdx}
           onUpdateTitle={handleUpdateTitle}
           onClose={() => setShowExportPdf(false)}
         />
