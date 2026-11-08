@@ -13,6 +13,7 @@ import {
   Copy,
   FileDown,
   FolderUp,
+  HelpCircle,
   Plus,
   Trash2,
   Upload,
@@ -46,6 +47,7 @@ import { AddPageModal } from './AddPageModal';
 import { BulkUploadModal } from './BulkUploadModal';
 import { ExportPdfModal } from './ExportPdfModal';
 import { GuidedCameraModal } from './GuidedCameraModal';
+import { HelpGuideModal } from './HelpGuideModal';
 import { PhotoPreviewModal } from './PhotoPreviewModal';
 import { PhotoSlotCard } from './PhotoSlotCard';
 import { VendorSettingsModal } from './VendorSettingsModal';
@@ -77,6 +79,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [showBulkUpload, setShowBulkUpload] = useState<boolean>(false);
   const [showExportPdf, setShowExportPdf] = useState<boolean>(false);
   const [showVendorModal, setShowVendorModal] = useState<boolean>(false);
+  const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
   const [cameraModalSlot, setCameraModalSlot] = useState<number | null>(null);
   const [previewSlotIdx, setPreviewSlotIdx] = useState<number | null>(null);
   const [watermarkSlotIdx, setWatermarkSlotIdx] = useState<number | null>(null);
@@ -479,6 +482,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setShowHelpModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              title="Panduan Penggunaan Aplikasi"
+            >
+              <HelpCircle className="w-4 h-4 text-blue-600" />
+              <span className="hidden md:inline">Panduan</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowVendorModal(true)}
@@ -912,6 +925,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           onSaveDocumentHeader={handlePatchHeader}
           onClose={() => setShowVendorModal(false)}
         />
+      )}
+
+      {showHelpModal && (
+        <HelpGuideModal onClose={() => setShowHelpModal(false)} />
       )}
 
       {cameraModalSlot !== null && activePage && (

@@ -10,6 +10,7 @@ import {
   FilePlus2,
   FileText,
   FolderInput,
+  HelpCircle,
   Search,
   Smartphone,
   Trash2,
@@ -27,6 +28,7 @@ import {
 import { DOCUMENT_TYPES, generateId } from '../presets/documentPresets';
 import { DocumentType, QcDocument } from '../types';
 import { ExportPdfModal } from './ExportPdfModal';
+import { HelpGuideModal } from './HelpGuideModal';
 import { NewDocumentModal } from './NewDocumentModal';
 import { VendorSettingsModal } from './VendorSettingsModal';
 
@@ -50,6 +52,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showNewModal, setShowNewModal] = useState<boolean>(false);
   const [showGlobalVendorModal, setShowGlobalVendorModal] = useState<boolean>(false);
+  const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
   const [exportTargetDoc, setExportTargetDoc] = useState<QcDocument | null>(null);
   const [importingZip, setImportingZip] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(
@@ -205,6 +208,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
 
               <button
                 type="button"
+                onClick={() => setShowHelpModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+                title="Panduan Penggunaan Aplikasi"
+              >
+                <HelpCircle className="w-4 h-4 text-blue-300" />
+                Panduan
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setShowGlobalVendorModal(true)}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
               >
@@ -323,6 +336,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
               >
                 <Download className="w-4 h-4" />
                 Impor Backup (.ZIP)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowHelpModal(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+              >
+                <HelpCircle className="w-4 h-4" />
+                Baca Panduan Pemakaian
               </button>
             </div>
           </div>
@@ -471,6 +492,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
 
       {showGlobalVendorModal && (
         <VendorSettingsModal onClose={() => setShowGlobalVendorModal(false)} />
+      )}
+
+      {showHelpModal && (
+        <HelpGuideModal onClose={() => setShowHelpModal(false)} />
       )}
 
       {exportTargetDoc && (
