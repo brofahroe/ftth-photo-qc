@@ -88,10 +88,6 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
 
   const safePageIdx = Math.min(previewPageIdx, Math.max(0, doc.pages.length - 1));
   const currentPage = doc.pages[safePageIdx];
-  const isLandscape =
-    currentPage?.preset === 'EL_INPUT_SPLITTER' ||
-    currentPage?.preset === 'EL_OUTPUT_SPLITTER' ||
-    currentPage?.preset === 'EL_OPM_FAT';
 
   const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -170,7 +166,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                 Preview & Export Dokumen PDF
               </h2>
               <p className="text-xs text-slate-300">
-                Periksa tampilan tabel header & foto tiap halaman sebelum di-convert ke PDF ({doc.pages.length}{' '}
+                Periksa tampilan tabel header & foto tiap halaman sebelum di-convert ke PDF (A4 Portrait • {doc.pages.length}{' '}
                 halaman • {filledSlots}/{totalSlots} foto terisi)
               </p>
             </div>
@@ -314,9 +310,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                     transform: `scale(${previewZoom})`,
                     transformOrigin: 'top center',
                   }}
-                  className={`bg-white shadow-xl border border-slate-300 p-5 sm:p-7 transition-transform ${
-                    isLandscape ? 'w-[760px]' : 'w-[560px]'
-                  }`}
+                  className="bg-white shadow-xl border border-slate-300 p-5 sm:p-7 transition-transform w-[560px] min-h-[792px]"
                 >
                   {/* Simulated PDF Header Table */}
                   <div className="border-2 border-black text-black mb-3">
@@ -390,11 +384,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                   </div>
 
                   {/* Simulated 2-Column Photo Slots Grid */}
-                  <div
-                    className={`grid grid-cols-2 ${
-                      isLandscape ? 'gap-x-8 gap-y-0' : 'gap-x-3 gap-y-2.5'
-                    }`}
-                  >
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
                     {currentPage.slots.map((slot, sIdx) => {
                       const photoUrl = slot.photoId
                         ? photoUrlMap.get(slot.photoId)

@@ -72,69 +72,72 @@ interface LayoutMetrics {
   lineWidth: number;
 }
 
+const A4_PORTRAIT_W = 595.28;
+const A4_PORTRAIT_H = 841.89;
+
 function getLayoutMetrics(page: DocumentPage): LayoutMetrics {
   switch (page.preset) {
     case 'EL_INPUT_SPLITTER':
       return {
-        orientation: 'landscape',
-        pageW: 792,
-        pageH: 612,
-        left: 75.5,
-        totalW: 641.0,
-        headerTop: 54.7,
-        headerH: 77.3,
-        col1W: 179.5,
-        col2W: 120.4,
-        col3W: 88.0,
-        col4W: 253.1,
+        orientation: 'portrait',
+        pageW: A4_PORTRAIT_W,
+        pageH: A4_PORTRAIT_H,
+        left: 67.64,
+        totalW: 460.0,
+        headerTop: 55.0,
+        headerH: 52.0,
+        col1W: 130.0,
+        col2W: 90.0,
+        col3W: 68.0,
+        col4W: 172.0,
         splitLogoCell: false,
-        headerFontSize: 9.0,
-        middleFontSize: 9.0,
-        gridTop: 146.0,
-        leftColW: 273.7,
-        rightColW: 270.5,
-        colGap: 96.8,
-        photoH: 189.5,
-        descH: 14.1,
-        rowGap: 0,
-        descFontSize: 9.0,
+        headerFontSize: 7.5,
+        middleFontSize: 7.2,
+        gridTop: 120.0,
+        leftColW: 214.0,
+        rightColW: 214.0,
+        colGap: 32.0,
+        photoH: 200.0,
+        descH: 14.0,
+        rowGap: 16.0,
+        descFontSize: 8.0,
         lineWidth: 0.9,
       };
 
     case 'EL_OUTPUT_SPLITTER':
     case 'EL_OPM_FAT':
       return {
-        orientation: 'landscape',
-        pageW: 792,
-        pageH: 612,
-        left: 217.7,
-        totalW: 356.7,
-        headerTop: 54.7,
-        headerH: 43.2,
-        col1W: 100.0,
-        col2W: 67.0,
-        col3W: 50.0,
-        col4W: 139.7,
+        orientation: 'portrait',
+        pageW: A4_PORTRAIT_W,
+        pageH: A4_PORTRAIT_H,
+        left: 77.64,
+        totalW: 440.0,
+        headerTop: 48.0,
+        headerH: 46.0,
+        col1W: 124.0,
+        col2W: 84.0,
+        col3W: 64.0,
+        col4W: 168.0,
         splitLogoCell: false,
-        headerFontSize: 5.6,
-        middleFontSize: 5.5,
-        gridTop: 105.7,
-        leftColW: 152.1,
-        rightColW: 150.6,
-        colGap: 54.0,
-        photoH: 104.3,
-        descH: 7.95,
-        rowGap: 0,
-        descFontSize: 5.8,
-        lineWidth: 0.65,
+        headerFontSize: 7.0,
+        middleFontSize: 6.8,
+        gridTop: 104.0,
+        leftColW: 206.0,
+        rightColW: 206.0,
+        colGap: 28.0,
+        photoH: 148.0,
+        descH: 12.0,
+        rowGap: 10.0,
+        descFontSize: 7.2,
+        lineWidth: 0.8,
       };
 
     case 'IMPLE_STANDARD':
       return {
         orientation: 'portrait',
-        pageW: 612,
-        pageH: 792,
-        left: 126.5,
+        pageW: A4_PORTRAIT_W,
+        pageH: A4_PORTRAIT_H,
+        left: 118.09,
         totalW: 359.1,
         headerTop: 55.0,
         headerH: 32.8,
@@ -161,9 +164,9 @@ function getLayoutMetrics(page: DocumentPage): LayoutMetrics {
     default:
       return {
         orientation: 'portrait',
-        pageW: 612,
-        pageH: 792,
-        left: 99.4,
+        pageW: A4_PORTRAIT_W,
+        pageH: A4_PORTRAIT_H,
+        left: 90.94,
         totalW: 413.4,
         headerTop: 55.0,
         headerH: 36.8,
@@ -440,11 +443,10 @@ export async function generateDocumentPdf(
     { dataUrl: string; width: number; height: number }
   >();
 
-  const firstMetrics = getLayoutMetrics(doc.pages[0]);
   const pdf = new jsPDF({
-    orientation: firstMetrics.orientation,
+    orientation: 'portrait',
     unit: 'pt',
-    format: [firstMetrics.pageW, firstMetrics.pageH],
+    format: 'a4',
     compress: true,
   });
 
@@ -453,7 +455,7 @@ export async function generateDocumentPdf(
     const m = getLayoutMetrics(page);
 
     if (pageIdx > 0) {
-      pdf.addPage([m.pageW, m.pageH], m.orientation);
+      pdf.addPage('a4', 'portrait');
     }
 
     onProgress?.({
