@@ -1,12 +1,36 @@
-import React, { useState } from 'react';
-import { Copy, FilePlus2, Layers, Sparkles, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import {
+  Copy,
+  Database,
+  Edit3,
+  FilePlus2,
+  Layers,
+  ListFilter,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import {
   createDocumentPage,
   DEFAULT_HEADER,
   DOCUMENT_TYPES,
 } from '../presets/documentPresets';
-import { createDocument } from '../db/database';
-import { DocumentPage, DocumentType, QcDocument } from '../types';
+import {
+  buildSiteReferenceLookups,
+  DEFAULT_SITE_REFERENCES,
+} from '../presets/siteReferences';
+import {
+  createDocument,
+  db,
+  ensureSiteReferencesSeeded,
+} from '../db/database';
+import {
+  DocumentPage,
+  DocumentType,
+  QcDocument,
+  SiteReferenceItem,
+} from '../types';
+import { SiteReferenceModal } from './SiteReferenceModal';
 
 interface NewDocumentModalProps {
   existingDocs: QcDocument[];
@@ -19,15 +43,38 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
   onClose,
   onCreated,
 }) => {
+  useEffect(() => {
+    ensureSiteReferencesSeeded();
+  }, []);
+
+  const dbSites = useLiveQuery(
+    () => db.siteReferences.toArray(),
+    [],
+    DEFAULT_SITE_REFERENCES
+  );
+  const sites = dbSites.length > 0 ? dbSites : DEFAULT_SITE_REFERENCES;
+  const lookups = buildSiteReferenceLookups(sites);
+
   const [docType, setDocType] = useState<DocumentType>('CW');
   const [title, setTitle] = useState<string>(DOCUMENT_TYPES.CW.defaultFileName);
   const [projectName, setProjectName] = useState<string>(DEFAULT_HEADER.projectName);
-  const [region, setRegion] = useState<string>('');
-  const [oltName, setOltName] = useState<string>('');
-  const [clusterName, setClusterName] = useState<string>('');
-  const [clusterId, setClusterId] = useState<string>('');
+  const [region, setRegion] = useState<string>('BLORA');
+  const [oltName, setOltName] = useState<string>('BALUN');
+  const [clusterName, setClusterName] = useState<string>('KELURAHAN KAPUAN BLORA');
+  const [clusterId, setClusterId] = useState<string>('CLRM07-99-021');
   const [firstDeviceCode, setFirstDeviceCode] = useState<string>('BLA-CPU-D05');
+
+  const [manualInputMode, setManualInputMode] = useState<boolean>(false);
+  const [showSiteTableModal, setShowSiteTableModal] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const applySiteRecord = (site: SiteReferenceItem) => {
+    if (site.region) setRegion(site.region);
+    if (site.oltName) setOltName(site.oltName);
+    if (site.clusterName) setClusterName(site.clusterName);
+    if (site.clusterId) setClusterId(site.clusterId);
+    if (site.fdtId) setFirstDeviceCode(site.fdtId);
+  };
 
   const handleSelectType = (next: DocumentType) => {
     setDocType(next);
@@ -35,8 +82,40 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
     if (!title.trim() || defaultTitles.includes(title.trim())) {
       setTitle(DOCUMENT_TYPES[next].defaultFileName);
     }
-    if (next === 'CW') setFirstDeviceCode('BLA-CPU-D05');
-    if (next === 'EL') setFirstDeviceCode('BLA-CPU-D41');
+  };
+
+  const handleSelectClusterById = (selectedClusterId: string) => {
+    setClusterId(selectedClusterId);
+    const found = lookups.clusters.find((c) => c.clusterId === selectedClusterId);
+    if (found) {
+      setClusterName(found.clusterName);
+      if (found.region) setRegion(found.region);
+      if (found.oltName) setOltName(found.oltName);
+      if (found.fdtIds.length > 0 && !found.fdtIds.includes(firstDeviceCode)) {
+        setFirstDeviceCode(found.fdtIds[0]);
+      }
+    }
+  };
+
+  const handleSelectClusterByName = (selectedClusterName: string) => {
+    setClusterName(selectedClusterName);
+    const found = lookups.clusters.find((c) => c.clusterName === selectedClusterName);
+    if (found) {
+      setClusterId(found.clusterId);
+      if (found.region) setRegion(found.region);
+      if (found.oltName) setOltName(found.oltName);
+      if (found.fdtIds.length > 0 && !found.fdtIds.includes(firstDeviceCode)) {
+        setFirstDeviceCode(found.fdtIds[0]);
+      }
+    }
+  };
+
+  const handleSelectFdtCode = (selectedFdt: string) => {
+    setFirstDeviceCode(selectedFdt);
+    const foundSite = sites.find((s) => s.fdtId === selectedFdt);
+    if (foundSite) {
+      applySiteRecord(foundSite);
+    }
   };
 
   const handleCopyHeaderFrom = (docId: string) => {
@@ -48,6 +127,17 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
     setClusterName(source.header.clusterName || '');
     setClusterId(source.header.clusterId || '');
   };
+
+  // FDTs belonging to currently selected cluster vs others
+  const clusterFdtSites = sites.filter(
+    (s) =>
+      s.fdtId &&
+      ((clusterId && s.clusterId === clusterId) ||
+        (clusterName && s.clusterName === clusterName))
+  );
+  const otherFdtSites = sites.filter(
+    (s) => s.fdtId && !clusterFdtSites.some((cf) => cf.id === s.id)
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,9 +275,41 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
 
           {/* Document Title & Cluster Metadata */}
           <div className="space-y-3 pt-1">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-              2. Nama File & Informasi Header Cluster
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                2. Nama File & Informasi Header Cluster
+              </label>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setManualInputMode((v) => !v)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                  title="Ganti antara pilih dari Dropdown Referensi atau Ketik Manual"
+                >
+                  {manualInputMode ? (
+                    <>
+                      <ListFilter className="w-3.5 h-3.5 text-blue-600" />
+                      Mode Dropdown
+                    </>
+                  ) : (
+                    <>
+                      <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                      Ketik Manual
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSiteTableModal(true)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100"
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  Tabel Site ({sites.length})
+                </button>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
@@ -199,57 +321,136 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Contoh: FOTO CW - CLRMO7-99-021"
+                  placeholder="Contoh: FOTO CW - CLRM07-99-021"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
                 />
               </div>
 
+              {/* Region */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Region</label>
-                <input
-                  type="text"
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  placeholder="Contoh: BLORA"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase placeholder:normal-case focus:border-blue-600 focus:outline-none"
-                />
+                {!manualInputMode && lookups.regions.length > 0 ? (
+                  <select
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-blue-600 focus:outline-none"
+                  >
+                    <option value="">-- Pilih Region --</option>
+                    {lookups.regions.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                    {region && !lookups.regions.includes(region) && (
+                      <option value={region}>{region}</option>
+                    )}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                    placeholder="Contoh: BLORA"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase placeholder:normal-case focus:border-blue-600 focus:outline-none"
+                  />
+                )}
               </div>
 
+              {/* OLT Name */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">OLT Name</label>
-                <input
-                  type="text"
-                  value={oltName}
-                  onChange={(e) => setOltName(e.target.value)}
-                  placeholder="Contoh: BALUN"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase placeholder:normal-case focus:border-blue-600 focus:outline-none"
-                />
+                {!manualInputMode && lookups.oltNames.length > 0 ? (
+                  <select
+                    value={oltName}
+                    onChange={(e) => setOltName(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-blue-600 focus:outline-none"
+                  >
+                    <option value="">-- Pilih OLT --</option>
+                    {lookups.oltNames.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                    {oltName && !lookups.oltNames.includes(oltName) && (
+                      <option value={oltName}>{oltName}</option>
+                    )}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={oltName}
+                    onChange={(e) => setOltName(e.target.value)}
+                    placeholder="Contoh: BALUN"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase placeholder:normal-case focus:border-blue-600 focus:outline-none"
+                  />
+                )}
               </div>
 
+              {/* Cluster Name */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Cluster Name
                 </label>
-                <input
-                  type="text"
-                  value={clusterName}
-                  onChange={(e) => setClusterName(e.target.value)}
-                  placeholder="Contoh: KELURAHAN KAPUAN BLORA"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase placeholder:normal-case focus:border-blue-600 focus:outline-none"
-                />
+                {!manualInputMode && lookups.clustersByName.length > 0 ? (
+                  <select
+                    value={clusterName}
+                    onChange={(e) => handleSelectClusterByName(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-blue-600 focus:outline-none"
+                  >
+                    <option value="">-- Pilih Cluster Name --</option>
+                    {lookups.clustersByName.map((c) => (
+                      <option key={`${c.clusterId}-${c.clusterName}`} value={c.clusterName}>
+                        {c.clusterName} ({c.clusterId})
+                      </option>
+                    ))}
+                    {clusterName &&
+                      !lookups.clustersByName.some((c) => c.clusterName === clusterName) && (
+                        <option value={clusterName}>{clusterName}</option>
+                      )}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={clusterName}
+                    onChange={(e) => setClusterName(e.target.value)}
+                    placeholder="Contoh: KELURAHAN KAPUAN BLORA"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase placeholder:normal-case focus:border-blue-600 focus:outline-none"
+                  />
+                )}
               </div>
 
+              {/* Cluster ID */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Cluster ID</label>
-                <input
-                  type="text"
-                  value={clusterId}
-                  onChange={(e) => setClusterId(e.target.value)}
-                  placeholder="Contoh: CLRMO7-99-021"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase placeholder:normal-case focus:border-blue-600 focus:outline-none"
-                />
+                {!manualInputMode && lookups.clusters.length > 0 ? (
+                  <select
+                    value={clusterId}
+                    onChange={(e) => handleSelectClusterById(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-blue-600 focus:outline-none"
+                  >
+                    <option value="">-- Pilih Cluster ID --</option>
+                    {lookups.clusters.map((c) => (
+                      <option key={`${c.clusterId}-${c.clusterName}`} value={c.clusterId}>
+                        {c.clusterId} — {c.clusterName}
+                      </option>
+                    ))}
+                    {clusterId &&
+                      !lookups.clusters.some((c) => c.clusterId === clusterId) && (
+                        <option value={clusterId}>{clusterId}</option>
+                      )}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={clusterId}
+                    onChange={(e) => setClusterId(e.target.value)}
+                    placeholder="Contoh: CLRM07-99-021"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase placeholder:normal-case focus:border-blue-600 focus:outline-none"
+                  />
+                )}
               </div>
 
+              {/* Nama Proyek */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Nama Proyek (Header Kiri)
@@ -263,18 +464,50 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
                 />
               </div>
 
+              {/* Kode FDT Halaman Awal */}
               {docType !== 'IMPLE' && (
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
                     Kode FDT Halaman Awal
                   </label>
-                  <input
-                    type="text"
-                    value={firstDeviceCode}
-                    onChange={(e) => setFirstDeviceCode(e.target.value)}
-                    placeholder="Contoh: BLA-CPU-D05"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
-                  />
+                  {!manualInputMode && lookups.fdtList.length > 0 ? (
+                    <select
+                      value={firstDeviceCode}
+                      onChange={(e) => handleSelectFdtCode(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-blue-900 focus:border-blue-600 focus:outline-none"
+                    >
+                      {clusterFdtSites.length > 0 && (
+                        <optgroup
+                          label={`FDT di Cluster ${clusterName || clusterId} (${clusterFdtSites.length})`}
+                        >
+                          {clusterFdtSites.map((s) => (
+                            <option key={s.id} value={s.fdtId}>
+                              {s.fdtId} ({s.clusterName} • HP: {s.hpDrm || '-'})
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Semua Kode FDT di Sitelist">
+                        {otherFdtSites.map((s) => (
+                          <option key={s.id} value={s.fdtId}>
+                            {s.fdtId} — {s.clusterName} ({s.clusterId})
+                          </option>
+                        ))}
+                      </optgroup>
+                      {firstDeviceCode &&
+                        !lookups.fdtList.some((s) => s.fdtId === firstDeviceCode) && (
+                          <option value={firstDeviceCode}>{firstDeviceCode}</option>
+                        )}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={firstDeviceCode}
+                      onChange={(e) => setFirstDeviceCode(e.target.value)}
+                      placeholder="Contoh: BLA-CPU-D05"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -283,8 +516,9 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
           <div className="rounded-xl bg-blue-50/70 border border-blue-100 px-3.5 py-2.5 flex items-start gap-2.5 text-xs text-blue-900">
             <Layers className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
             <span>
-              Halaman pembuka akan dibuatkan otomatis dan Anda bebas menambah, menghapus, atau
-              mengubah halaman kapan saja di dalam editor.
+              Memilih <strong>Cluster Name</strong>, <strong>Cluster ID</strong>, atau{' '}
+              <strong>Kode FDT</strong> pada dropdown akan mengisi kolom lainnya secara otomatis
+              sesuai tabel referensi <code>Sitelist.csv</code>.
             </span>
           </div>
 
@@ -307,6 +541,13 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
           </div>
         </form>
       </div>
+
+      {showSiteTableModal && (
+        <SiteReferenceModal
+          onSelectSite={(site) => applySiteRecord(site)}
+          onClose={() => setShowSiteTableModal(false)}
+        />
+      )}
     </div>
   );
 };

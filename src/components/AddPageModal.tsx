@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { PlusCircle, X } from 'lucide-react';
+import { db, ensureSiteReferencesSeeded } from '../db/database';
 import { createDocumentPage } from '../presets/documentPresets';
+import { DEFAULT_SITE_REFERENCES } from '../presets/siteReferences';
 import { DocumentPage, DocumentType, PagePresetType } from '../types';
 
 interface AddPageModalProps {
   docType: DocumentType;
   existingPagesCount: number;
   defaultFdtCode?: string;
+  clusterId?: string;
+  clusterName?: string;
   onAddPages: (pages: DocumentPage[]) => void;
   onClose: () => void;
 }
@@ -15,9 +20,31 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
   docType,
   existingPagesCount,
   defaultFdtCode = 'BLA-CPU-D05',
+  clusterId,
+  clusterName,
   onAddPages,
   onClose,
 }) => {
+  useEffect(() => {
+    ensureSiteReferencesSeeded();
+  }, []);
+
+  const dbSites = useLiveQuery(
+    () => db.siteReferences.toArray(),
+    [],
+    DEFAULT_SITE_REFERENCES
+  );
+  const sites = (dbSites.length > 0 ? dbSites : DEFAULT_SITE_REFERENCES).filter(
+    (s) => Boolean(s.fdtId)
+  );
+  const clusterSites = sites.filter(
+    (s) =>
+      (clusterId && s.clusterId === clusterId) ||
+      (clusterName && s.clusterName === clusterName)
+  );
+  const otherSites = sites.filter(
+    (s) => !clusterSites.some((cs) => cs.id === s.id)
+  );
   const defaultPreset: PagePresetType =
     docType === 'CW'
       ? 'CW_FAT'
@@ -198,8 +225,35 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   {preset === 'CW_FAT'
                     ? 'Kode FAT (bisa ketik 1 kode, atau banyak kode dipisah koma/baris baru)'
-                    : 'Kode FDT'}
+                    : 'Pilih Kode FDT dari Tabel Referensi'}
                 </label>
+                {preset === 'CW_FDT' && sites.length > 0 && (
+                  <select
+                    value={sites.some((s) => s.fdtId === deviceCodesInput) ? deviceCodesInput : ''}
+                    onChange={(e) => {
+                      if (e.target.value) setDeviceCodesInput(e.target.value);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-blue-900 mb-2 focus:border-blue-600 focus:outline-none"
+                  >
+                    <option value="">-- Pilih Kode FDT dari Sitelist --</option>
+                    {clusterSites.length > 0 && (
+                      <optgroup label={`FDT di Cluster ${clusterName || clusterId}`}>
+                        {clusterSites.map((s) => (
+                          <option key={s.id} value={s.fdtId}>
+                            {s.fdtId} ({s.clusterName})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="Semua Kode FDT">
+                      {otherSites.map((s) => (
+                        <option key={s.id} value={s.fdtId}>
+                          {s.fdtId} — {s.clusterName} ({s.clusterId})
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                )}
                 <textarea
                   rows={preset === 'CW_FAT' ? 3 : 2}
                   required
@@ -275,14 +329,42 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div className={preset === 'EL_OUTPUT_SPLITTER' ? '' : 'col-span-2'}>
                     <label className="block text-xs font-medium text-slate-700 mb-1">Kode FDT</label>
-                    <input
-                      type="text"
-                      required
-                      value={fdtCode}
-                      onChange={(e) => setFdtCode(e.target.value)}
-                      placeholder="BLA-CPU-D41"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
-                    />
+                    {sites.length > 0 ? (
+                      <select
+                        value={fdtCode}
+                        onChange={(e) => setFdtCode(e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-blue-900 focus:border-blue-600 focus:outline-none"
+                      >
+                        {clusterSites.length > 0 && (
+                          <optgroup label={`FDT di Cluster ${clusterName || clusterId}`}>
+                            {clusterSites.map((s) => (
+                              <option key={s.id} value={s.fdtId}>
+                                {s.fdtId} ({s.clusterName})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="Semua Kode FDT">
+                          {otherSites.map((s) => (
+                            <option key={s.id} value={s.fdtId}>
+                              {s.fdtId} — {s.clusterName}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {fdtCode && !sites.some((s) => s.fdtId === fdtCode) && (
+                          <option value={fdtCode}>{fdtCode}</option>
+                        )}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        required
+                        value={fdtCode}
+                        onChange={(e) => setFdtCode(e.target.value)}
+                        placeholder="BLA-CPU-D41"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
+                      />
+                    )}
                   </div>
                   {preset === 'EL_OUTPUT_SPLITTER' && (
                     <div>

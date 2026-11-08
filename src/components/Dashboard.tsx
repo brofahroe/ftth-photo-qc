@@ -5,6 +5,7 @@ import {
   Building2,
   Camera,
   Copy,
+  Database,
   Download,
   FileDown,
   FilePlus2,
@@ -30,6 +31,7 @@ import { DocumentType, QcDocument } from '../types';
 import { ExportPdfModal } from './ExportPdfModal';
 import { HelpGuideModal } from './HelpGuideModal';
 import { NewDocumentModal } from './NewDocumentModal';
+import { SiteReferenceModal } from './SiteReferenceModal';
 import { VendorSettingsModal } from './VendorSettingsModal';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -52,6 +54,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showNewModal, setShowNewModal] = useState<boolean>(false);
   const [showGlobalVendorModal, setShowGlobalVendorModal] = useState<boolean>(false);
+  const [showSiteModal, setShowSiteModal] = useState<boolean>(false);
   const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
   const [exportTargetDoc, setExportTargetDoc] = useState<QcDocument | null>(null);
   const [importingZip, setImportingZip] = useState<boolean>(false);
@@ -214,6 +217,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
               >
                 <HelpCircle className="w-4 h-4 text-blue-300" />
                 Panduan
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowSiteModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+                title="Tabel Referensi Data Site (Sitelist)"
+              >
+                <Database className="w-4 h-4 text-emerald-300" />
+                Data Site
               </button>
 
               <button
@@ -492,6 +505,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
 
       {showGlobalVendorModal && (
         <VendorSettingsModal onClose={() => setShowGlobalVendorModal(false)} />
+      )}
+
+      {showSiteModal && (
+        <SiteReferenceModal onClose={() => setShowSiteModal(false)} />
       )}
 
       {showHelpModal && (

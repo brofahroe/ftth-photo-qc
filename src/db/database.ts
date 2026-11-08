@@ -8,14 +8,20 @@ import {
   GeoCacheEntry,
   PhotoRecord,
   QcDocument,
+  SiteReferenceItem,
 } from '../types';
 import { DEFAULT_HEADER, generateId } from '../presets/documentPresets';
+import {
+  DEFAULT_SITE_REFERENCES,
+  parseSiteListCsv,
+} from '../presets/siteReferences';
 
 class PhotoQcDatabase extends Dexie {
   documents!: EntityTable<QcDocument, 'id'>;
   photos!: EntityTable<PhotoRecord, 'id'>;
   geoCache!: EntityTable<GeoCacheEntry, 'gridKey'>;
   settings!: EntityTable<AppSettings, 'id'>;
+  siteReferences!: EntityTable<SiteReferenceItem, 'id'>;
 
   constructor() {
     super('FtthPhotoQcDB');
@@ -25,10 +31,74 @@ class PhotoQcDatabase extends Dexie {
       geoCache: 'gridKey, updatedAt',
       settings: 'id',
     });
+    this.version(2).stores({
+      documents: 'id, docType, updatedAt, createdAt',
+      photos: 'id, documentId, createdAt',
+      geoCache: 'gridKey, updatedAt',
+      settings: 'id',
+      siteReferences: 'id, clusterId, clusterName, fdtId, region, oltName',
+    });
   }
 }
 
 export const db = new PhotoQcDatabase();
+
+let seedingPromise: Promise<void> | null = null;
+
+export async function ensureSiteReferencesSeeded(): Promise<void> {
+  if (!seedingPromise) {
+    seedingPromise = (async () => {
+      const count = await db.siteReferences.count();
+      if (count === 0) {
+        await db.siteReferences.bulkPut(DEFAULT_SITE_REFERENCES);
+      }
+    })().finally(() => {
+      seedingPromise = null;
+    });
+  }
+  return seedingPromise;
+}
+
+export async function resetSiteReferencesToDefault(): Promise<number> {
+  await db.transaction('rw', db.siteReferences, async () => {
+    await db.siteReferences.clear();
+    await db.siteReferences.bulkPut(DEFAULT_SITE_REFERENCES);
+  });
+  return DEFAULT_SITE_REFERENCES.length;
+}
+
+export async function importSiteReferencesFromCsvText(
+  csvText: string,
+  mode: 'REPLACE' | 'APPEND' = 'REPLACE'
+): Promise<number> {
+  const parsed = parseSiteListCsv(csvText);
+  if (parsed.length === 0) {
+    throw new Error('Tidak ada baris data site yang valid di dalam file CSV.');
+  }
+  await db.transaction('rw', db.siteReferences, async () => {
+    if (mode === 'REPLACE') {
+      await db.siteReferences.clear();
+    }
+    await db.siteReferences.bulkPut(parsed);
+  });
+  return parsed.length;
+}
+
+export async function addSiteReferenceItem(
+  item: Omit<SiteReferenceItem, 'id'>
+): Promise<SiteReferenceItem> {
+  const record: SiteReferenceItem = {
+    ...item,
+    id: generateId(),
+  };
+  await db.siteReferences.put(record);
+  return record;
+}
+
+export async function deleteSiteReferenceItem(id: string): Promise<void> {
+  await db.siteReferences.delete(id);
+}
+
 
 export async function getGlobalSettings(): Promise<AppSettings> {
   const existing = await db.settings.get('global');

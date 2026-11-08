@@ -110,3 +110,17 @@ export interface AppSettings {
   defaultRightLogoDataUrl?: string | null;
   hideRightLogo?: boolean;
 }
+
+export interface SiteReferenceItem {
+  id: string;
+  clusterId: string;      // e.g. "CLRM07-99-021"
+  clusterName: string;    // e.g. "KELURAHAN KAPUAN BLORA"
+  region: string;         // e.g. "BLORA"
+  kecamatan: string;      // e.g. "Cepu"
+  clusterInitial: string; // e.g. "CPU"
+  fdtNo: string;          // e.g. "D05"
+  hpDrm: string;          // e.g. "336"
+  fdtId: string;          // e.g. "BLA-CPU-D05"
+  oltName: string;        // e.g. "BALUN"
+}
+
