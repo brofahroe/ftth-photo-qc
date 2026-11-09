@@ -1,8 +1,9 @@
-export type DocumentType = 'CW' | 'EL' | 'IMPLE';
+export type DocumentType = 'CW' | 'CW_SF' | 'EL' | 'IMPLE';
 
 export type PagePresetType =
   | 'CW_FDT'
   | 'CW_FAT'
+  | 'CW_SF_POLE'
   | 'EL_INPUT_SPLITTER'
   | 'EL_OUTPUT_SPLITTER'
   | 'EL_OPM_FAT'

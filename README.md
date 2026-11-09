@@ -3,6 +3,7 @@
 Aplikasi web progresif (**Offline-First PWA**) untuk memudahkan pengambilan foto di lapangan (kamera HP + watermark timestamp & geolokasi otomatis) serta penyusunan laporan PDF dokumentasi proyek FTTH:
 
 - **FOTO CW** (`FDT` 6 kotak & `FAT` 6 kotak — Grid 2x3)
+- **FOTO CW SF** (Implementasi 10 kotak, FDT 6 kotak, & Pole SF 4 kotak sesuai contoh)
 - **FOTO EL** (`Input Splitter` 4 kotak, `Output Splitter` 8 kotak, & `OPM FAT` 8 kotak untuk 1310nm & 1550nm)
 - **FOTO IMPLEMENTASI** (10 kotak tahapan `Digging Pole`, `Instal Pole`, `Pulling Cable`, `Instal Accessories`, `Concrete Pole` — Grid 2x5)
 

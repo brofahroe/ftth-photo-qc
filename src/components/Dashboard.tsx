@@ -280,6 +280,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                 id: 'CW' as const,
                 label: `FOTO CW (${docs.filter((d) => d.docType === 'CW').length})`,
               },
+              { id: 'CW_SF' as const, label: `FOTO CW SF (${docs.filter((d) => d.docType === 'CW_SF').length})` },
               {
                 id: 'EL' as const,
                 label: `FOTO EL (${docs.filter((d) => d.docType === 'EL').length})`,

@@ -292,6 +292,19 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                   </div>
                 </div>
 
+                {/* CW SF */}
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="text-xs font-extrabold text-indigo-800">FOTO CW SF</strong>
+                    <span className="text-xs font-bold text-slate-600">Implementasi, FDT, dan Pole SF</span>
+                  </div>
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    Mengikuti contoh <code>FOTO CW SF.pdf</code>: halaman Implementasi (10 kotak),
+                    FDT (6 kotak), dan Pole SF ext (4 kotak). Halaman FDT dan Pole SF dapat
+                    ditambahkan lagi dari menu Tambah Halaman.
+                  </p>
+                </div>
+
                 {/* EL */}
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-2.5">
                   <div className="flex items-center justify-between gap-2">

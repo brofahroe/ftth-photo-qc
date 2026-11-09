@@ -321,6 +321,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                           className={`flex items-center justify-between gap-2 px-2.5 py-2 ${
                             currentPage.preset === 'CW_FDT' ||
                             currentPage.preset === 'CW_FAT' ||
+                            currentPage.preset === 'CW_SF_POLE' ||
                             currentPage.preset === 'IMPLE_STANDARD'
                               ? 'border-b border-black'
                               : ''
@@ -367,8 +368,14 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                         {[
                           ['Region', doc.header.region],
                           ['OLT Name', doc.header.oltName],
-                          ['Cluster Name', doc.header.clusterName],
-                          ['Cluster ID', doc.header.clusterId],
+                          [
+                            doc.docType === 'CW_SF' ? 'Subfeeder Name' : 'Cluster Name',
+                            doc.header.clusterName,
+                          ],
+                          [
+                            doc.docType === 'CW_SF' ? 'Subfeeder ID' : 'Cluster ID',
+                            doc.header.clusterId,
+                          ],
                         ].map(([label, val]) => (
                           <div key={label} className="grid grid-cols-12">
                             <div className="col-span-4 border-r border-black px-1.5 py-0.5 truncate">

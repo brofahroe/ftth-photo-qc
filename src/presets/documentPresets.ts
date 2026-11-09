@@ -29,6 +29,14 @@ export const DOCUMENT_TYPES: Record<DocumentType, DocumentTypeMeta> = {
     description: '6 foto per halaman (Grid 2x3) untuk dokumentasi fisik FDT dan FAT beserta tiang & label.',
     badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
   },
+  CW_SF: {
+    type: 'CW_SF',
+    label: 'FOTO CW SF (Civil Work — Subfeeder)',
+    shortLabel: 'FOTO CW SF',
+    defaultFileName: 'FOTO CW SF',
+    description: 'Dokumentasi implementasi, FDT, dan Pole SF sesuai format contoh FOTO CW SF.',
+    badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  },
   EL: {
     type: 'EL',
     label: 'FOTO EL (Electrical / OPM Redaman)',
@@ -124,6 +132,32 @@ export function createDocumentPage(opts: CreatePageOptions): DocumentPage {
         descriptionPrefix: 'Description: ',
         showEmptySlotNumber: false,
         slots: labels.map((description, slotIndex) => ({
+          slotIndex,
+          description,
+          photoId: null,
+        })),
+      };
+    }
+
+    case 'CW_SF_POLE': {
+      const code = (opts.deviceCode || 'Pole SF ext 1').trim();
+      return {
+        id,
+        preset: 'CW_SF_POLE',
+        headerTopText: 'PHOTO',
+        headerBottomText: `Photo\n${code}`,
+        mergeMiddleHeader: false,
+        columns: 2,
+        rows: 2,
+        descriptionStyle: 'white-center',
+        descriptionPrefix: 'Description: ',
+        showEmptySlotNumber: true,
+        slots: [
+          'View Full Pole FAT',
+          'View Pondasi Pole',
+          'View ID/Label Kabel',
+          'View ID/Label Pole',
+        ].map((description, slotIndex) => ({
           slotIndex,
           description,
           photoId: null,

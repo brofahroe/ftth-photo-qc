@@ -497,8 +497,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 />
               </div>
               <p className="text-[11px] text-slate-500 truncate">
-                {doc.header.clusterId || 'Cluster ID belum diisi'} •{' '}
-                {doc.header.clusterName || 'Nama Cluster'} • Terisi {totalFilledCount}/
+                {doc.header.clusterId || `${doc.docType === 'CW_SF' ? 'Subfeeder ID' : 'Cluster ID'} belum diisi`} •{' '}
+                {doc.header.clusterName || `Nama ${doc.docType === 'CW_SF' ? 'Subfeeder' : 'Cluster'}`} • Terisi {totalFilledCount}/
                 {totalSlotsCount} foto
               </p>
             </div>
@@ -576,7 +576,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-slate-900 truncate">
-                  Header Tabel Cluster: {doc.header.region || '—'} / {doc.header.oltName || '—'} /{' '}
+                  Header {doc.docType === 'CW_SF' ? 'Subfeeder' : 'Tabel Cluster'}: {doc.header.region || '—'} / {doc.header.oltName || '—'} /{' '}
                   {doc.header.clusterName || '—'} ({doc.header.clusterId || '—'})
                 </div>
                 <div className="text-[11px] text-slate-500">

@@ -48,6 +48,8 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
   const defaultPreset: PagePresetType =
     docType === 'CW'
       ? 'CW_FAT'
+      : docType === 'CW_SF'
+        ? 'CW_SF_POLE'
       : docType === 'EL'
         ? 'EL_OPM_FAT'
         : 'IMPLE_STANDARD';
@@ -56,6 +58,8 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
   const [deviceCodesInput, setDeviceCodesInput] = useState<string>(
     docType === 'CW'
       ? `S01-A0${Math.max(1, existingPagesCount)}`
+      : docType === 'CW_SF'
+        ? `Pole SF ext ${Math.max(1, existingPagesCount)}`
       : docType === 'EL'
         ? 'A01 S01'
         : ''
@@ -73,6 +77,9 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
     setPreset(next);
     if (next === 'CW_FDT') setDeviceCodesInput(defaultFdtCode || 'BLA-CPU-D05');
     if (next === 'CW_FAT') setDeviceCodesInput(`S01-A0${Math.max(1, existingPagesCount)}`);
+    if (next === 'CW_SF_POLE') {
+      setDeviceCodesInput(`Pole SF ext ${Math.max(1, existingPagesCount)}`);
+    }
     if (next === 'EL_INPUT_SPLITTER' || next === 'EL_OUTPUT_SPLITTER') {
       setDeviceCodesInput(defaultFdtCode || 'BLA-CPU-D41');
     }
@@ -108,6 +115,21 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
             deviceCode: code,
           })
         );
+      }
+      onAddPages(newPages);
+      onClose();
+      return;
+    }
+
+    if (docType === 'CW_SF') {
+      const codes = deviceCodesInput
+        .split(/[\n,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const fallbackCode =
+        preset === 'CW_FDT' ? defaultFdtCode || 'BLA-CPU-D05' : 'Pole SF ext 1';
+      for (const code of codes.length > 0 ? codes : [fallbackCode]) {
+        newPages.push(createDocumentPage({ preset, deviceCode: code }));
       }
       onAddPages(newPages);
       onClose();
@@ -187,14 +209,14 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {docType === 'CW' && (
+          {(docType === 'CW' || docType === 'CW_SF') && (
             <>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">
-                  Tipe Halaman FOTO CW
+                  Tipe Halaman {docType === 'CW_SF' ? 'FOTO CW SF' : 'FOTO CW'}
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
-                  <button
+                  {docType === 'CW' && <button
                     type="button"
                     onClick={() => handlePresetChange('CW_FAT')}
                     className={`rounded-xl border p-3 text-left ${
@@ -205,7 +227,7 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                   >
                     <div className="font-bold text-sm text-slate-900">FAT (6 Kotak)</div>
                     <div className="text-[11px] text-slate-500 mt-0.5">FAT Tertutup, Terbuka, Pole...</div>
-                  </button>
+                  </button>}
                   <button
                     type="button"
                     onClick={() => handlePresetChange('CW_FDT')}
@@ -218,6 +240,20 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                     <div className="font-bold text-sm text-slate-900">FDT (6 Kotak)</div>
                     <div className="text-[11px] text-slate-500 mt-0.5">FDT Tertutup, Terbuka, Pole...</div>
                   </button>
+                  {docType === 'CW_SF' && (
+                    <button
+                      type="button"
+                      onClick={() => handlePresetChange('CW_SF_POLE')}
+                      className={`rounded-xl border p-3 text-left ${
+                        preset === 'CW_SF_POLE'
+                          ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-600/20'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="font-bold text-sm text-slate-900">Pole SF (4 Kotak)</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">Dokumentasi Pole SF ext</div>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -225,7 +261,9 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   {preset === 'CW_FAT'
                     ? 'Kode FAT (bisa ketik 1 kode, atau banyak kode dipisah koma/baris baru)'
-                    : 'Pilih Kode FDT dari Tabel Referensi'}
+                    : preset === 'CW_SF_POLE'
+                      ? 'Label Pole SF (bisa ketik beberapa label, dipisah koma/baris baru)'
+                      : 'Pilih Kode FDT dari Tabel Referensi'}
                 </label>
                 {preset === 'CW_FDT' && sites.length > 0 && (
                   <select
@@ -262,7 +300,9 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                   placeholder={
                     preset === 'CW_FAT'
                       ? 'Contoh: S01-A01\natau sekaligus: S01-A01, S01-A02, S01-A03'
-                      : 'Contoh: BLA-CPU-D05'
+                      : preset === 'CW_SF_POLE'
+                        ? 'Contoh: Pole SF ext 1'
+                        : 'Contoh: BLA-CPU-D05'
                   }
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
                 />

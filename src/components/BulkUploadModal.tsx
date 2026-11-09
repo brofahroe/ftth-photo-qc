@@ -37,14 +37,22 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
   const [newPagePreset, setNewPagePreset] = useState<PagePresetType>(
     docType === 'CW'
       ? 'CW_FAT'
+      : docType === 'CW_SF'
+        ? 'CW_SF_POLE'
       : docType === 'EL'
         ? 'EL_OPM_FAT'
         : 'IMPLE_STANDARD'
   );
   const [codePrefix, setCodePrefix] = useState<string>(
-    docType === 'CW' ? 'S01-A' : docType === 'EL' ? 'A01 S' : ''
+    docType === 'CW'
+      ? 'S01-A'
+      : docType === 'CW_SF'
+        ? 'Pole SF ext '
+        : docType === 'EL'
+          ? 'A01 S'
+          : ''
   );
-  const [startSequence, setStartSequence] = useState<number>(1);
+  const [startSequence, setStartSequence] = useState<number>(docType === 'CW_SF' ? 2 : 1);
   const [processing, setProcessing] = useState<boolean>(false);
   const [progressText, setProgressText] = useState<string>('');
 
@@ -54,6 +62,13 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
       .filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(f.name))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     setFiles((prev) => [...prev, ...imageFiles]);
+  };
+
+  const handleNewPagePresetChange = (preset: PagePresetType) => {
+    setNewPagePreset(preset);
+    if (docType === 'CW_SF') {
+      setCodePrefix(preset === 'CW_FDT' ? 'BLA-CPU-D' : 'Pole SF ext ');
+    }
   };
 
   const handleRunBulkUpload = async () => {
@@ -97,7 +112,10 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
       // Step 2: Automatically create new pages for remaining photos!
       while (fileCursor < files.length) {
         const paddedNo = String(seqCounter).padStart(2, '0');
-        const generatedCode = `${codePrefix}${paddedNo}`;
+        const generatedCode =
+          docType === 'CW_SF' && newPagePreset === 'CW_SF_POLE'
+            ? `${codePrefix}${seqCounter}`
+            : `${codePrefix}${paddedNo}`;
         seqCounter++;
 
         const newPage = createDocumentPage({
@@ -247,12 +265,19 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                 </label>
                 <select
                   value={newPagePreset}
-                  onChange={(e) => setNewPagePreset(e.target.value as PagePresetType)}
+                  onChange={(e) =>
+                    handleNewPagePresetChange(e.target.value as PagePresetType)
+                  }
                   className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
                 >
                   {docType === 'CW' ? (
                     <>
                       <option value="CW_FAT">FAT — 6 Kotak per Halaman</option>
+                      <option value="CW_FDT">FDT — 6 Kotak per Halaman</option>
+                    </>
+                  ) : docType === 'CW_SF' ? (
+                    <>
+                      <option value="CW_SF_POLE">Pole SF — 4 Kotak per Halaman</option>
                       <option value="CW_FDT">FDT — 6 Kotak per Halaman</option>
                     </>
                   ) : (

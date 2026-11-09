@@ -4,6 +4,7 @@ import { db } from '../db/database';
 import {
   DocumentHeader,
   DocumentPage,
+  DocumentType,
   PdfQualityPreset,
   PhotoRecord,
   QcDocument,
@@ -177,6 +178,7 @@ function getLayoutMetrics(page: DocumentPage): LayoutMetrics {
 
     case 'CW_FDT':
     case 'CW_FAT':
+    case 'CW_SF_POLE':
     default:
       return {
         orientation: 'portrait',
@@ -270,6 +272,7 @@ function drawFittedSingleLine(
 
 function drawPageHeader(
   pdf: jsPDF,
+  docType: DocumentType,
   header: DocumentHeader,
   page: DocumentPage,
   m: LayoutMetrics,
@@ -392,8 +395,8 @@ function drawPageHeader(
   const metaRows: Array<[string, string]> = [
     ['Region', header.region],
     ['OLT Name', header.oltName],
-    ['Cluster Name', header.clusterName],
-    ['Cluster ID', header.clusterId],
+    [docType === 'CW_SF' ? 'Subfeeder Name' : 'Cluster Name', header.clusterName],
+    [docType === 'CW_SF' ? 'Subfeeder ID' : 'Cluster ID', header.clusterId],
   ];
   const rowH = h / 4;
 
@@ -481,7 +484,7 @@ export async function generateDocumentPdf(
     });
 
     // 1. Draw exact Header Block
-    drawPageHeader(pdf, doc.header, page, m, leftLogo, rightLogo);
+    drawPageHeader(pdf, doc.docType, doc.header, page, m, leftLogo, rightLogo);
 
     // 2. Draw Photo Slots Grid
     for (let r = 0; r < page.rows; r++) {
