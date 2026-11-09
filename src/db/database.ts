@@ -148,7 +148,7 @@ export async function createDocument(params: {
       ...params.header,
     },
     pages: params.initialPages ?? [],
-    defaultWatermarkOnUpload: true,
+    defaultWatermarkOnUpload: false,
     createdAt: now,
     updatedAt: now,
   };

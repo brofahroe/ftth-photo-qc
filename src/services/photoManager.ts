@@ -15,6 +15,7 @@ export function buildFallbackRegionLines(header: DocumentHeader): string[] {
 export async function createPhotoFromCamera(params: {
   documentId: string;
   captureBlob: Blob;
+  watermarkEnabled: boolean;
   watermarkData?: WatermarkData;
   fallbackHeader: DocumentHeader;
 }): Promise<PhotoRecord> {
@@ -26,7 +27,7 @@ export async function createPhotoFromCamera(params: {
   const rendered = await renderWatermarkedPhoto({
     rawBlob: normalized.blob,
     rotation: 0,
-    watermarkEnabled: true,
+    watermarkEnabled: params.watermarkEnabled,
     watermark,
     maxLongEdge: 1400,
     jpegQuality: 0.82,
@@ -39,7 +40,7 @@ export async function createPhotoFromCamera(params: {
     rawBlob: normalized.blob,
     renderedBlob: rendered.blob,
     rotation: 0,
-    watermarkEnabled: true,
+    watermarkEnabled: params.watermarkEnabled,
     watermark,
     width: rendered.width,
     height: rendered.height,

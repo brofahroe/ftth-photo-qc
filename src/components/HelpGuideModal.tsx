@@ -173,8 +173,9 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                     </h4>
                     <p className="text-xs text-slate-600 leading-relaxed">
                       Di lapangan, gunakan tombol <strong>Kamera Beruntun</strong> untuk memotret
-                      urut dari Kotak #1 sampai selesai lengkap dengan watermark waktu & GPS. Di PC,
-                      gunakan <strong>Upload Sekaligus</strong> atau <strong>Massal</strong>.
+                      urut dari Kotak #1 sampai selesai. Watermark waktu & GPS dapat diaktifkan
+                      manual melalui saklar watermark. Di PC, gunakan{' '}
+                      <strong>Upload Sekaligus</strong> atau <strong>Massal</strong>.
                     </p>
                   </div>
 
@@ -233,7 +234,7 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                   <ul className="text-xs text-slate-700 space-y-1.5 list-disc pl-4 leading-relaxed">
                     <li>
                       Jika foto dari tim lapangan sudah punya watermark bawaan,{' '}
-                      <strong>matikan</strong> centang <em>"Pasang Watermark saat Upload"</em>.
+                      biarkan saklar <em>"Watermark Otomatis (Kamera & Upload)"</em> mati.
                     </li>
                     <li>
                       Gunakan tombol <strong>Massal</strong> di panel daftar halaman untuk menarik
@@ -404,7 +405,7 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                   <ul className="text-xs text-slate-600 space-y-1.5 list-disc pl-4 leading-relaxed">
                     <li>
                       <strong>GPS Akurat (Hijau)</strong>: Koordinat satelit sudah mengunci dengan
-                      akurasi tinggi dan siap dicetak ke watermark foto.
+                      akurasi tinggi dan siap dipakai jika watermark diaktifkan.
                     </li>
                     <li>
                       <strong>Mencari GPS (Kuning)</strong>: Tunggu beberapa detik di area terbuka
@@ -421,21 +422,20 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                 <div className="rounded-2xl border border-slate-200 p-4 space-y-2.5">
                   <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs sm:text-sm">
                     <Upload className="w-4 h-4" />
-                    <span>Saklar "Pasang Watermark saat Upload"</span>
+                    <span>Saklar Watermark Otomatis Kamera & Upload</span>
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Terletak di sebelah kanan tombol Upload pada halaman dokumen:
+                    Watermark otomatis mati secara default. Aktifkan saklar di sebelah tombol
+                    Upload pada halaman dokumen jika ingin menerapkan watermark:
                   </p>
                   <ul className="text-xs text-slate-600 space-y-1.5 list-disc pl-4 leading-relaxed">
                     <li>
-                      <strong>Tidak Dicentang (Mati)</strong>: Gunakan jika foto yang Anda upload
-                      dari galeri HP <em>sudah memiliki teks timestamp bawaan</em> agar tidak
-                      tertumpuk dua watermark.
+                      <strong>Tidak Dicentang (Mati)</strong>: Foto kamera dan foto yang di-upload
+                      disimpan tanpa watermark otomatis.
                     </li>
                     <li>
-                      <strong>Dicentang (Aktif)</strong>: Gunakan jika foto yang di-upload masih
-                      polos; aplikasi akan membaca jam & koordinat dari data EXIF foto secara
-                      otomatis.
+                      <strong>Dicentang (Aktif)</strong>: Watermark waktu & GPS diterapkan otomatis
+                      pada foto kamera dan upload (menggunakan data EXIF jika tersedia).
                     </li>
                   </ul>
                 </div>
@@ -677,7 +677,7 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                   },
                   {
                     q: 'Foto yang saya upload sudah ada tulisan waktu/koordinat dari aplikasi kamera HP, bagaimana agar tidak tertimpa watermark dobel?',
-                    a: 'Sebelum meng-upload foto, pastikan kotak centang "Pasang Watermark saat Upload" di sebelah kanan tombol Upload dalam keadaan TIDAK DICENTANG. Jika sudah terlanjur ter-upload, Anda juga bisa klik ikon Pin/Lokasi pada foto tersebut lalu matikan saklar "Tampilkan Watermark pada Foto Ini".',
+                    a: 'Watermark otomatis kamera dan upload nonaktif secara default. Jika ingin menggunakannya, aktifkan saklar "Watermark Otomatis (Kamera & Upload)" di halaman dokumen. Untuk satu foto, klik ikon Pin/Lokasi pada foto lalu aktifkan saklar "Tampilkan Watermark pada Foto Ini".',
                   },
                   {
                     q: 'Bagaimana jika saat memotret di lapangan sinyal internet mati sehingga nama Desa/Kecamatan tidak muncul otomatis?',

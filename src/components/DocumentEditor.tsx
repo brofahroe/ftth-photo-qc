@@ -263,6 +263,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       const record = await createPhotoFromCamera({
         documentId: doc.id,
         captureBlob,
+        watermarkEnabled: doc.defaultWatermarkOnUpload,
         watermarkData: watermark,
         fallbackHeader: doc.header,
       });
@@ -984,7 +985,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       onChange={handleToggleDefaultWatermark}
                       className="h-4 w-4 rounded border-slate-300 text-blue-600"
                     />
-                    <span>Pasang Watermark saat Upload</span>
+                    <span>Watermark Otomatis (Kamera & Upload)</span>
                   </label>
                 </div>
 

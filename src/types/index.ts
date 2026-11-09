@@ -73,7 +73,7 @@ export interface QcDocument {
   docType: DocumentType;
   header: DocumentHeader;
   pages: DocumentPage[];
-  /** Default upload watermark toggle state remembered per document */
+  /** Default camera/upload watermark toggle state remembered per document */
   defaultWatermarkOnUpload: boolean;
   createdAt: number;
   updatedAt: number;
@@ -124,4 +124,3 @@ export interface SiteReferenceItem {
   fdtId: string;          // e.g. "BLA-CPU-D05"
   oltName: string;        // e.g. "BALUN"
 }
-

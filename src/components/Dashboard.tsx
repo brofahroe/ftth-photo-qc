@@ -330,8 +330,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                   : 'Tidak Ada Dokumen yang Cocok'}
               </h2>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Buat dokumen baru untuk mulai memotret langsung dari kamera HP (dengan watermark
-                waktu & GPS) atau meng-upload foto-foto FDT/FAT untuk dicetak ke PDF.
+                Buat dokumen baru untuk memotret atau meng-upload foto. Watermark waktu & GPS
+                dapat diaktifkan secara manual dari halaman dokumen.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3 pt-1">

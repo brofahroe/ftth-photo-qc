@@ -14,7 +14,7 @@ export default defineConfig({
       manifest: {
         name: 'FTTH Photo QC — Dokumentasi Proyek',
         short_name: 'Photo QC',
-        description: 'Aplikasi pengambilan & penyusunan foto dokumentasi proyek FTTH (CW, EL, Implementasi) dengan watermark timestamp & geolokasi',
+        description: 'Aplikasi pengambilan & penyusunan foto dokumentasi proyek FTTH (CW, EL, Implementasi) dengan opsi watermark timestamp & geolokasi',
         theme_color: '#0f172a',
         background_color: '#f8fafc',
         display: 'standalone',

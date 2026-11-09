@@ -1,6 +1,6 @@
 # FTTH Photo QC — Aplikasi Dokumentasi Foto Proyek (PWA)
 
-Aplikasi web progresif (**Offline-First PWA**) untuk memudahkan pengambilan foto di lapangan (kamera HP + watermark timestamp & geolokasi otomatis) serta penyusunan laporan PDF dokumentasi proyek FTTH:
+Aplikasi web progresif (**Offline-First PWA**) untuk memudahkan pengambilan foto di lapangan serta penyusunan laporan PDF dokumentasi proyek FTTH. Watermark timestamp & geolokasi bersifat opsional dan nonaktif secara default:
 
 - **FOTO CW** (`FDT` 6 kotak & `FAT` 6 kotak — Grid 2x3)
 - **FOTO CW SF** (Implementasi 10 kotak, FDT 6 kotak, & Pole SF 4 kotak sesuai contoh)
@@ -41,7 +41,7 @@ Browser HP mewajibkan koneksi **HTTPS** untuk mengizinkan akses **Kamera** dan *
 
 ## Fitur Utama
 1. **Mode Kamera Beruntun di HP**: Sekali buka kamera langsung memandu jepret urut dari Kotak #1 sampai selesai beserta indikator akurasi GPS live.
-2. **Watermark Non-Destruktif**: Saklar on/off pasang watermark saat upload (agar foto yang sudah ber-watermark tidak tertimpa dobel), pembaca EXIF otomatis, serta fitur edit manual jam, koordinat, dan alamat untuk 1 foto maupun seluruh foto se-halaman.
+2. **Watermark Non-Destruktif**: Watermark otomatis untuk kamera dan upload nonaktif secara default dan dapat diaktifkan manual. Tersedia pembaca EXIF serta fitur edit manual jam, koordinat, dan alamat untuk 1 foto maupun seluruh foto se-halaman.
 3. **Upload Massal & Auto-Buat Halaman**: Tarik puluhan foto sekaligus untuk otomatis dipecah menjadi halaman-halaman baru sesuai template.
 4. **3 Pilihan Kualitas PDF**: *Ringan*, *Standar Jernih* (angka layar OPM tajam saat di-zoom), dan *Kualitas Tinggi*.
 5. **Backup & Pindah Perangkat (`.photoqc.zip`)**: Ekspor dan impor paket proyek utuh antara HP dan Laptop tanpa butuh akun cloud.
