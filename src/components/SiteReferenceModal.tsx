@@ -1,6 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Database,
   Download,
   Pencil,
@@ -32,6 +35,31 @@ interface SiteReferenceModalProps {
   onSelectSite?: (site: SiteReferenceItem) => void;
 }
 
+type SortField =
+  | 'fdtId'
+  | 'clusterId'
+  | 'clusterName'
+  | 'region'
+  | 'kecamatan'
+  | 'oltName'
+  | 'hpDrm';
+
+type SortDirection = 'asc' | 'desc';
+
+const SORTABLE_COLUMNS: Array<{
+  field: SortField;
+  label: string;
+  align?: 'left' | 'right';
+}> = [
+  { field: 'fdtId', label: 'Coding FDT (FDT ID)' },
+  { field: 'clusterId', label: 'Cluster ID' },
+  { field: 'clusterName', label: 'Cluster Name' },
+  { field: 'region', label: 'Region' },
+  { field: 'kecamatan', label: 'Kecamatan' },
+  { field: 'oltName', label: 'OLT Name' },
+  { field: 'hpDrm', label: 'HP DRM', align: 'right' },
+];
+
 export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
   onClose,
   onSelectSite,
@@ -50,6 +78,8 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
   const lookups = buildSiteReferenceLookups(sites);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDir, setSortDir] = useState<SortDirection>('asc');
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
   const [editingSite, setEditingSite] = useState<SiteReferenceItem | null>(null);
 
@@ -92,18 +122,50 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
     setShowAddForm(true);
   };
 
-  const filteredSites = sites.filter((s) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      s.clusterId.toLowerCase().includes(q) ||
-      s.clusterName.toLowerCase().includes(q) ||
-      s.fdtId.toLowerCase().includes(q) ||
-      s.region.toLowerCase().includes(q) ||
-      s.kecamatan.toLowerCase().includes(q) ||
-      s.oltName.toLowerCase().includes(q)
-    );
-  });
+  const handleToggleSort = (field: SortField) => {
+    if (sortField !== field) {
+      setSortField(field);
+      setSortDir('asc');
+    } else if (sortDir === 'asc') {
+      setSortDir('desc');
+    } else {
+      setSortField(null);
+      setSortDir('asc');
+    }
+  };
+
+  const filteredSites = useMemo(() => {
+    const filtered = sites.filter((s) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        s.clusterId.toLowerCase().includes(q) ||
+        s.clusterName.toLowerCase().includes(q) ||
+        s.fdtId.toLowerCase().includes(q) ||
+        s.region.toLowerCase().includes(q) ||
+        s.kecamatan.toLowerCase().includes(q) ||
+        s.oltName.toLowerCase().includes(q)
+      );
+    });
+
+    if (!sortField) return filtered;
+
+    return [...filtered].sort((a, b) => {
+      const rawA = (a[sortField] || '').trim();
+      const rawB = (b[sortField] || '').trim();
+
+      // Always push empty values to the bottom
+      if (!rawA && !rawB) return 0;
+      if (!rawA) return 1;
+      if (!rawB) return -1;
+
+      const cmp = rawA.localeCompare(rawB, 'id', {
+        numeric: true,
+        sensitivity: 'base',
+      });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [sites, searchQuery, sortField, sortDir]);
 
   const handleAddRow = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -416,13 +478,46 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
           <table className="w-full text-left border-collapse text-xs">
             <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 border-b border-slate-200">
               <tr>
-                <th className="py-2.5 px-3 font-bold">Coding FDT (FDT ID)</th>
-                <th className="py-2.5 px-3 font-bold">Cluster ID</th>
-                <th className="py-2.5 px-3 font-bold">Cluster Name</th>
-                <th className="py-2.5 px-3 font-bold">Region</th>
-                <th className="py-2.5 px-3 font-bold">Kecamatan</th>
-                <th className="py-2.5 px-3 font-bold">OLT Name</th>
-                <th className="py-2.5 px-3 font-bold text-right">HP DRM</th>
+                {SORTABLE_COLUMNS.map((col) => {
+                  const isActive = sortField === col.field;
+                  const ariaSort = isActive
+                    ? sortDir === 'asc'
+                      ? 'ascending'
+                      : 'descending'
+                    : 'none';
+
+                  return (
+                    <th
+                      key={col.field}
+                      aria-sort={ariaSort}
+                      className={`py-2 px-3 font-bold ${
+                        col.align === 'right' ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSort(col.field)}
+                        title={`Urutkan berdasarkan ${col.label}`}
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 -mx-1.5 transition select-none ${
+                          isActive
+                            ? 'bg-blue-100/80 text-blue-800 font-extrabold'
+                            : 'hover:bg-slate-200/70 text-slate-700'
+                        }`}
+                      >
+                        <span>{col.label}</span>
+                        {isActive ? (
+                          sortDir === 'asc' ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        )}
+                      </button>
+                    </th>
+                  );
+                })}
                 <th className="py-2.5 px-3 font-bold text-center">Aksi</th>
               </tr>
             </thead>
