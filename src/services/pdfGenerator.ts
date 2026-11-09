@@ -75,6 +75,22 @@ interface LayoutMetrics {
 const A4_PORTRAIT_W = 595.28;
 const A4_PORTRAIT_H = 841.89;
 
+function assertA4PortraitPages(pdf: jsPDF): void {
+  for (let pageNumber = 1; pageNumber <= pdf.getNumberOfPages(); pageNumber++) {
+    pdf.setPage(pageNumber);
+    const width = pdf.internal.pageSize.getWidth();
+    const height = pdf.internal.pageSize.getHeight();
+    if (
+      Math.abs(width - A4_PORTRAIT_W) > 0.01 ||
+      Math.abs(height - A4_PORTRAIT_H) > 0.01
+    ) {
+      throw new Error(
+        `Ukuran halaman PDF ke-${pageNumber} bukan A4 portrait (${width.toFixed(2)} \u00d7 ${height.toFixed(2)} pt).`
+      );
+    }
+  }
+}
+
 function getLayoutMetrics(page: DocumentPage): LayoutMetrics {
   switch (page.preset) {
     case 'EL_INPUT_SPLITTER':
@@ -574,6 +590,7 @@ export async function generateDocumentPdf(
     });
   }
 
+  assertA4PortraitPages(pdf);
   const blob = pdf.output('blob');
   const cleanName = doc.title.replace(/[\\/:*?"<>|]+/g, '-').trim() || `FOTO ${doc.docType}`;
   const filename = cleanName.toLowerCase().endsWith('.pdf') ? cleanName : `${cleanName}.pdf`;
