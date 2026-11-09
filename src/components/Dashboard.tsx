@@ -192,7 +192,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-                  Dokumentasi Foto CW, EL (OPM), & Implementasi • Watermark Timestamp & GPS Otomatis
+                  Dokumentasi Foto CW (termasuk Implementasi), CW SF, & EL (OPM) • Watermark opsional
                 </p>
               </div>
             </div>
@@ -285,10 +285,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                 id: 'EL' as const,
                 label: `FOTO EL (${docs.filter((d) => d.docType === 'EL').length})`,
               },
-              {
-                id: 'IMPLE' as const,
-                label: `IMPLEMENTASI (${docs.filter((d) => d.docType === 'IMPLE').length})`,
-              },
+              ...(docs.some((d) => d.docType === 'IMPLE')
+                ? [
+                    {
+                      id: 'IMPLE' as const,
+                      label: `IMPLEMENTASI (Arsip: ${docs.filter((d) => d.docType === 'IMPLE').length})`,
+                    },
+                  ]
+                : []),
             ].map((tab) => (
               <button
                 key={tab.id}

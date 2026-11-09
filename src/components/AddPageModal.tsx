@@ -103,6 +103,16 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
     }
 
     if (docType === 'CW') {
+      if (preset === 'IMPLE_STANDARD') {
+        const count = Math.min(30, Math.max(1, implePageCount));
+        for (let i = 0; i < count; i++) {
+          newPages.push(createDocumentPage({ preset: 'IMPLE_STANDARD' }));
+        }
+        onAddPages(newPages);
+        onClose();
+        return;
+      }
+
       const codes = deviceCodesInput
         .split(/[\n,;]+/)
         .map((s) => s.trim())
@@ -216,6 +226,22 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                   Tipe Halaman {docType === 'CW_SF' ? 'FOTO CW SF' : 'FOTO CW'}
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
+                  {docType === 'CW' && (
+                    <button
+                      type="button"
+                      onClick={() => handlePresetChange('IMPLE_STANDARD')}
+                      className={`rounded-xl border p-3 text-left ${
+                        preset === 'IMPLE_STANDARD'
+                          ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-600/20'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="font-bold text-sm text-slate-900">Implementasi (10 Kotak)</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        Tahapan pekerjaan lapangan
+                      </div>
+                    </button>
+                  )}
                   {docType === 'CW' && <button
                     type="button"
                     onClick={() => handlePresetChange('CW_FAT')}
@@ -257,7 +283,7 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                 </div>
               </div>
 
-              <div>
+              {preset !== 'IMPLE_STANDARD' && <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   {preset === 'CW_FAT'
                     ? 'Kode FAT (bisa ketik 1 kode, atau banyak kode dipisah koma/baris baru)'
@@ -306,7 +332,7 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                   }
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
                 />
-              </div>
+              </div>}
             </>
           )}
 
@@ -474,6 +500,26 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
           )}
 
           {docType === 'IMPLE' && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Jumlah Halaman Implementasi (10 Kotak per Halaman)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={implePageCount}
+                onChange={(e) => setImplePageCount(Number(e.target.value) || 1)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
+              />
+              <p className="text-xs text-slate-500 mt-1.5">
+                Berisi masing-masing 2 kotak untuk Digging Pole, Instal Pole, Pulling Cable, Instal
+                Accessories, dan Concrete Pole.
+              </p>
+            </div>
+          )}
+
+          {docType === 'CW' && preset === 'IMPLE_STANDARD' && (
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
                 Jumlah Halaman Implementasi (10 Kotak per Halaman)

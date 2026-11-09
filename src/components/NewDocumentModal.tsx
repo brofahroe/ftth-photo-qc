@@ -146,6 +146,7 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
       const initialPages: DocumentPage[] = [];
       if (docType === 'CW') {
         initialPages.push(
+          createDocumentPage({ preset: 'IMPLE_STANDARD' }),
           createDocumentPage({
             preset: 'CW_FDT',
             deviceCode: firstDeviceCode || 'BLA-CPU-D05',
@@ -226,7 +227,7 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
               1. Pilih Jenis Dokumen
             </label>
             <div className="grid grid-cols-1 gap-2.5">
-              {(['CW', 'CW_SF', 'EL', 'IMPLE'] as DocumentType[]).map((type) => {
+              {(['CW', 'CW_SF', 'EL'] as DocumentType[]).map((type) => {
                 const meta = DOCUMENT_TYPES[type];
                 const active = docType === type;
                 return (

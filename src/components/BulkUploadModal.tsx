@@ -272,6 +272,7 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                 >
                   {docType === 'CW' ? (
                     <>
+                      <option value="IMPLE_STANDARD">Implementasi — 10 Kotak per Halaman</option>
                       <option value="CW_FAT">FAT — 6 Kotak per Halaman</option>
                       <option value="CW_FDT">FDT — 6 Kotak per Halaman</option>
                     </>

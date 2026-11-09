@@ -153,9 +153,9 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                     <h4 className="font-bold text-sm text-slate-900">Buat Dokumen Baru</h4>
                     <p className="text-xs text-slate-600 leading-relaxed">
                       Klik tombol <strong>Buat Dokumen Baru</strong>, pilih kategori laporan (
-                      <strong>FOTO CW</strong>, <strong>FOTO EL</strong>, atau{' '}
-                      <strong>IMPLEMENTASI</strong>), lalu isi data <em>Region</em>,{' '}
-                      <em>OLT Name</em>, <em>Cluster Name</em>, dan <em>Cluster ID</em>.
+                      <strong>FOTO CW</strong> (sudah termasuk halaman Implementasi),{' '}
+                      <strong>FOTO CW SF</strong>, atau <strong>FOTO EL</strong>, lalu isi data{' '}
+                      <em>Region</em>, <em>OLT Name</em>, <em>Cluster Name</em>, dan <em>Cluster ID</em>.
                     </p>
                   </div>
 
@@ -341,18 +341,19 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                   </div>
                 </div>
 
-                {/* IMPLE */}
+                {/* Implementation page included in CW documents */}
                 <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                      FOTO IMPLEMENTASI
+                      HALAMAN IMPLEMENTASI (FOTO CW)
                     </span>
                     <span className="text-xs font-bold text-slate-600">
                       10 Foto per Halaman (Grid 2 Kolom × 5 Baris)
                     </span>
                   </div>
                   <p className="text-xs text-slate-700 leading-relaxed">
-                    Setiap halaman memuat 10 kotak yang terbagi menjadi 5 tahapan pekerjaan (masing-masing 2 foto kiri-kanan):{' '}
+                    Menjadi halaman pertama pada dokumen FOTO CW. Setiap halaman memuat 10 kotak
+                    yang terbagi menjadi 5 tahapan pekerjaan (masing-masing 2 foto kiri-kanan):{' '}
                     <strong>Digging Pole</strong>, <strong>Instal Pole</strong>,{' '}
                     <strong>Pulling Cable</strong>, <strong>Instal Accessories</strong>, dan{' '}
                     <strong>Concrete Pole</strong>.

@@ -2,10 +2,10 @@
 
 Aplikasi web progresif (**Offline-First PWA**) untuk memudahkan pengambilan foto di lapangan serta penyusunan laporan PDF dokumentasi proyek FTTH. Watermark timestamp & geolokasi bersifat opsional dan nonaktif secara default:
 
-- **FOTO CW** (`FDT` 6 kotak & `FAT` 6 kotak — Grid 2x3)
+- **FOTO CW** (halaman `Implementasi` 10 kotak, `FDT` 6 kotak, & `FAT` 6 kotak dalam satu dokumen)
 - **FOTO CW SF** (Implementasi 10 kotak, FDT 6 kotak, & Pole SF 4 kotak sesuai contoh)
 - **FOTO EL** (`Input Splitter` 4 kotak, `Output Splitter` 8 kotak, & `OPM FAT` 8 kotak untuk 1310nm & 1550nm)
-- **FOTO IMPLEMENTASI** (10 kotak tahapan `Digging Pole`, `Instal Pole`, `Pulling Cable`, `Instal Accessories`, `Concrete Pole` — Grid 2x5)
+- Halaman `Implementasi` berisi 10 kotak tahapan `Digging Pole`, `Instal Pole`, `Pulling Cable`, `Instal Accessories`, dan `Concrete Pole` (Grid 2x5), menjadi halaman pertama dokumen FOTO CW.
 
 ---
 

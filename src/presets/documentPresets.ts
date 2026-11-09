@@ -26,7 +26,7 @@ export const DOCUMENT_TYPES: Record<DocumentType, DocumentTypeMeta> = {
     label: 'FOTO CW (Civil Work — FDT & FAT)',
     shortLabel: 'FOTO CW',
     defaultFileName: 'FOTO CW',
-    description: '6 foto per halaman (Grid 2x3) untuk dokumentasi fisik FDT dan FAT beserta tiang & label.',
+    description: 'Halaman Implementasi (10 kotak), FDT, dan FAT (masing-masing 6 kotak) dalam satu dokumen.',
     badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
   },
   CW_SF: {
