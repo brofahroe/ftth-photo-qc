@@ -153,13 +153,13 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
     typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-2 sm:p-4 backdrop-blur-xs overflow-y-auto">
-      <div className="w-full max-w-6xl max-h-[94vh] rounded-3xl bg-white shadow-2xl border border-slate-200 flex flex-col overflow-hidden my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-2 sm:p-3 backdrop-blur-xs overflow-y-auto">
+      <div className="w-full max-w-5xl max-h-[92dvh] rounded-3xl bg-white shadow-2xl border border-slate-200 flex flex-col overflow-hidden my-auto">
         {/* Top Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-900 text-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-emerald-600 p-2 text-white shadow-xs">
-              <Eye className="w-5 h-5" />
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5 bg-slate-900 text-white shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-xl bg-emerald-600 p-1.5 text-white shadow-xs">
+              <Eye className="w-4 h-4" />
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-extrabold tracking-tight">
@@ -182,9 +182,9 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
         </div>
 
         {/* Main Split Body: Left = Visual Preview, Right = Settings & Convert Actions */}
-        <div className="flex-1 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+        <div className="min-h-0 flex-1 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-1">
           {/* Left Column: Interactive Page Preview */}
-          <div className="lg:col-span-8 bg-slate-100 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col lg:h-full overflow-hidden">
+          <div className="min-h-0 lg:col-span-8 bg-slate-100 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col lg:h-full overflow-hidden">
             {/* Preview Toolbar */}
             <div className="bg-white border-b border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
               {/* Mode Switcher */}
@@ -451,8 +451,8 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
           </div>
 
           {/* Right Column: Export Settings & Convert Action */}
-          <div className="lg:col-span-4 p-5 space-y-4 flex flex-col justify-between bg-white">
-            <div className="space-y-4">
+          <div className="min-h-0 lg:col-span-4 p-3 sm:p-4 flex flex-col bg-white lg:overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
               {emptySlots > 0 && (
                 <div className="rounded-xl bg-amber-50 border border-amber-200 px-3.5 py-2.5 flex items-start gap-2 text-xs text-amber-900">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -564,12 +564,12 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
             </div>
 
             {/* Bottom Action Buttons */}
-            <div className="space-y-2 pt-3 border-t border-slate-200">
+            <div className="shrink-0 space-y-1.5 pt-2.5 mt-2 border-t border-slate-200">
               <button
                 type="button"
                 disabled={exporting}
                 onClick={() => buildPdfInMemory(false)}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-50 px-4 py-2.5 text-xs sm:text-sm font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50 transition"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-50 px-3 py-2 text-xs sm:text-sm font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50 transition"
               >
                 <Eye className="w-4 h-4" />
                 Preview Hasil Convert PDF
@@ -585,7 +585,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                     buildPdfInMemory(true);
                   }
                 }}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 transition"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 transition"
               >
                 {exporting ? (
                   <>
