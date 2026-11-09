@@ -95,6 +95,12 @@ export async function addSiteReferenceItem(
   return record;
 }
 
+export async function updateSiteReferenceItem(
+  item: SiteReferenceItem
+): Promise<void> {
+  await db.siteReferences.put(item);
+}
+
 export async function deleteSiteReferenceItem(id: string): Promise<void> {
   await db.siteReferences.delete(id);
 }

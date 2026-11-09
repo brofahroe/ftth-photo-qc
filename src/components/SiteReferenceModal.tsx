@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Database,
   Download,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
@@ -17,6 +18,7 @@ import {
   ensureSiteReferencesSeeded,
   importSiteReferencesFromCsvText,
   resetSiteReferencesToDefault,
+  updateSiteReferenceItem,
 } from '../db/database';
 import {
   buildSiteReferenceLookups,
@@ -49,6 +51,7 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
+  const [editingSite, setEditingSite] = useState<SiteReferenceItem | null>(null);
 
   // Add row state
   const [newClusterId, setNewClusterId] = useState<string>('');
@@ -62,6 +65,32 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
   const [newOltName, setNewOltName] = useState<string>('BALUN');
 
   const csvInputRef = useRef<HTMLInputElement | null>(null);
+
+  const clearForm = () => {
+    setNewClusterId('');
+    setNewClusterName('');
+    setNewFdtNo('');
+    setNewHpDrm('');
+    setNewFdtId('');
+    setNewRegion('BLORA');
+    setNewKecamatan('Cepu');
+    setNewInitial('CPU');
+    setNewOltName('BALUN');
+  };
+
+  const handleEditRow = (site: SiteReferenceItem) => {
+    setEditingSite(site);
+    setNewClusterId(site.clusterId);
+    setNewClusterName(site.clusterName);
+    setNewRegion(site.region);
+    setNewKecamatan(site.kecamatan);
+    setNewInitial(site.clusterInitial);
+    setNewFdtNo(site.fdtNo);
+    setNewHpDrm(site.hpDrm);
+    setNewFdtId(site.fdtId);
+    setNewOltName(site.oltName);
+    setShowAddForm(true);
+  };
 
   const filteredSites = sites.filter((s) => {
     if (!searchQuery.trim()) return true;
@@ -81,7 +110,7 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
     if (!newClusterId.trim() && !newClusterName.trim() && !newFdtId.trim()) {
       return;
     }
-    await addSiteReferenceItem({
+    const siteData = {
       clusterId: newClusterId.trim().toUpperCase(),
       clusterName: newClusterName.trim().toUpperCase(),
       region: newRegion.trim().toUpperCase(),
@@ -91,12 +120,14 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
       hpDrm: newHpDrm.trim(),
       fdtId: newFdtId.trim().toUpperCase(),
       oltName: newOltName.trim().toUpperCase(),
-    });
-    setNewClusterId('');
-    setNewClusterName('');
-    setNewFdtNo('');
-    setNewHpDrm('');
-    setNewFdtId('');
+    };
+    if (editingSite) {
+      await updateSiteReferenceItem({ ...siteData, id: editingSite.id });
+      setEditingSite(null);
+    } else {
+      await addSiteReferenceItem(siteData);
+    }
+    clearForm();
     setShowAddForm(false);
   };
 
@@ -183,7 +214,15 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowAddForm((v) => !v)}
+              onClick={() => {
+                if (showAddForm && !editingSite) {
+                  setShowAddForm(false);
+                  return;
+                }
+                setEditingSite(null);
+                clearForm();
+                setShowAddForm(true);
+              }}
               className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-700 transition"
             >
               <Plus className="w-4 h-4" />
@@ -228,7 +267,7 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
           </div>
         </div>
 
-        {/* Optional Add Site Form */}
+        {/* Add or edit site form */}
         {showAddForm && (
           <form
             onSubmit={handleAddRow}
@@ -236,11 +275,17 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-blue-950 uppercase tracking-wider">
-                Tambah Data Site / FDT Baru ke Tabel Referensi
+                {editingSite
+                  ? 'Edit Data Site / FDT'
+                  : 'Tambah Data Site / FDT Baru ke Tabel Referensi'}
               </span>
               <button
                 type="button"
-                onClick={() => setShowAddForm(false)}
+                onClick={() => {
+                  setShowAddForm(false);
+                  setEditingSite(null);
+                  clearForm();
+                }}
                 className="text-xs text-slate-500 hover:text-slate-800"
               >
                 Tutup Form
@@ -359,7 +404,7 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
                   type="submit"
                   className="w-full rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
                 >
-                  Simpan Site
+                  {editingSite ? 'Simpan Perubahan' : 'Simpan Site'}
                 </button>
               </div>
             </div>
@@ -414,6 +459,15 @@ export const SiteReferenceModal: React.FC<SiteReferenceModalProps> = ({
                   </td>
                   <td className="py-2 px-3 text-center whitespace-nowrap">
                     <div className="inline-flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleEditRow(site)}
+                        className="rounded-lg p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                        title="Edit baris ini"
+                        aria-label={`Edit ${site.clusterName}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
                       {onSelectSite && (
                         <button
                           type="button"
