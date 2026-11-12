@@ -22,6 +22,7 @@ import {
   Cloud,
   User,
   RefreshCw,
+  Settings,
 } from 'lucide-react';
 import { DEFAULT_MORA_LOGO, DEFAULT_ZTE_LOGO } from '../assets/defaultLogos';
 import {
@@ -70,6 +71,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
   const [showNewModal, setShowNewModal] = useState<boolean>(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState<boolean>(false);
   const [showGlobalVendorModal, setShowGlobalVendorModal] = useState<boolean>(false);
   const [showSiteModal, setShowSiteModal] = useState<boolean>(false);
   const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
@@ -85,6 +87,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   const zipInputRef = useRef<HTMLInputElement | null>(null);
+  const settingsMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showSettingsMenu) return;
+
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !settingsMenuRef.current?.contains(event.target)) {
+        setShowSettingsMenu(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowSettingsMenu(false);
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showSettingsMenu]);
 
   const handleSyncWithServer = async () => {
     setIsSyncing(true);
@@ -233,8 +256,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
       {/* Top Hero Banner */}
       <header className="bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
+          <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3.5">
               <div className="h-12 w-12 rounded-2xl bg-blue-600/90 border border-blue-400/30 flex items-center justify-center shadow-lg">
                 <Camera className="w-6 h-6 text-white" />
               </div>
@@ -267,7 +290,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
               {/* Display Name Pill */}
               <button
                 type="button"
@@ -278,7 +301,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                     setUserName(n.trim());
                   }
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition sm:w-auto"
                 title="Nama Anda (Klik untuk ubah)"
               >
                 <User className="w-4 h-4 text-sky-300" />
@@ -290,33 +313,87 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                 type="button"
                 onClick={handleSyncWithServer}
                 disabled={isSyncing}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 transition sm:w-auto"
                 title="Sinkronkan dengan Server SQLite"
               >
                 <RefreshCw className={`w-4 h-4 text-emerald-300 ${isSyncing ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">Sync</span>
               </button>
 
-              {/* Nextcloud Integration Status */}
-              <button
-                type="button"
-                onClick={() => setShowNextcloudModal(true)}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
-                  nextcloudConfigured
-                    ? 'bg-sky-500/20 border-sky-400/30 text-sky-200 hover:bg-sky-500/30'
-                    : 'bg-amber-500/20 border-amber-400/30 text-amber-200 hover:bg-amber-500/30'
-                }`}
-                title="Status Sinkronisasi Nextcloud"
-              >
-                <Cloud className="w-4 h-4 text-sky-300" />
-                <span>Nextcloud</span>
-              </button>
+              <div ref={settingsMenuRef} className="relative w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsMenu((open) => !open)}
+                  aria-expanded={showSettingsMenu}
+                  aria-controls="dashboard-settings-menu"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-white/20 sm:w-auto"
+                  title="Pengaturan aplikasi"
+                >
+                  <Settings className="w-4 h-4 text-slate-200" />
+                  <span>Setting</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform ${
+                      showSettingsMenu ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {showSettingsMenu && (
+                  <div
+                    id="dashboard-settings-menu"
+                    className="absolute left-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 text-slate-800 shadow-xl sm:left-auto sm:right-0"
+                  >
+                    <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Pengaturan Aplikasi
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        setShowNextcloudModal(true);
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-100"
+                    >
+                      <Cloud className="w-4 h-4 text-sky-600" />
+                      <span className="flex-1">Nextcloud</span>
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          nextcloudConfigured ? 'bg-emerald-500' : 'bg-amber-400'
+                        }`}
+                        aria-label={nextcloudConfigured ? 'Terhubung' : 'Belum terhubung'}
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        setShowSiteModal(true);
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-100"
+                    >
+                      <Database className="w-4 h-4 text-emerald-600" />
+                      <span>Data Site</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        setShowGlobalVendorModal(true);
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-100"
+                    >
+                      <Building2 className="w-4 h-4 text-slate-600" />
+                      <span>Logo & Proyek</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {installPrompt && (
                 <button
                   type="button"
                   onClick={handleInstallPwa}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 transition shadow-sm"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 transition shadow-sm sm:w-auto"
                 >
                   <Smartphone className="w-4 h-4" />
                   Install di HP
@@ -326,7 +403,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
               <button
                 type="button"
                 onClick={() => setShowHelpModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition sm:w-auto"
                 title="Panduan Penggunaan Aplikasi"
               >
                 <HelpCircle className="w-4 h-4 text-blue-300" />
@@ -335,28 +412,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
 
               <button
                 type="button"
-                onClick={() => setShowSiteModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
-                title="Tabel Referensi Data Site (Sitelist)"
-              >
-                <Database className="w-4 h-4 text-emerald-300" />
-                Data Site
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowGlobalVendorModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
-              >
-                <Building2 className="w-4 h-4" />
-                Logo & Proyek
-              </button>
-
-              <button
-                type="button"
                 disabled={importingZip}
                 onClick={() => zipInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition sm:w-auto"
               >
                 <FolderInput className="w-4 h-4" />
                 {importingZip ? 'Mengimpor...' : 'Impor .ZIP'}
@@ -365,7 +423,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
               <button
                 type="button"
                 onClick={() => setShowNewModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-md hover:bg-blue-500 active:scale-95 transition"
+                className="col-span-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs sm:col-span-1 sm:w-auto sm:text-sm font-bold text-white shadow-md hover:bg-blue-500 active:scale-95 transition"
               >
                 <FilePlus2 className="w-4 h-4" />
                 Buat Dokumen Baru

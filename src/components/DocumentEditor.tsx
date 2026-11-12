@@ -618,8 +618,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     <div className="min-h-screen flex flex-col bg-slate-100">
       {/* Top Sticky Header Bar */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <div className="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 flex flex-col items-stretch gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-2.5 lg:flex-1">
             <button
               type="button"
               onClick={onBack}
@@ -651,7 +651,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="grid w-full grid-cols-3 items-center gap-1.5 sm:gap-2 lg:flex lg:w-auto lg:shrink-0">
             {/* User Display Name */}
             <button
               type="button"
@@ -663,7 +663,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }
               }}
               title="Nama Anda (Klik untuk ubah)"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:w-auto"
             >
               <User className="w-3.5 h-3.5 text-blue-600" />
               <span className="truncate max-w-[70px] sm:max-w-[120px]">{userName}</span>
@@ -672,7 +672,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             {/* Online Presence Pill */}
             {presenceUsers.length > 1 && (
               <div
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-2.5 py-2 text-xs font-semibold text-emerald-800"
+                className="hidden w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-2.5 py-2 text-xs font-semibold text-emerald-800 sm:inline-flex lg:w-auto"
                 title={`Teknisi aktif di task ini: ${presenceUsers.join(', ')}`}
               >
                 <Users className="w-3.5 h-3.5 text-emerald-600" />
@@ -684,7 +684,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             <button
               type="button"
               onClick={() => setShowNextcloudModal(true)}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-semibold transition ${
+              className={`inline-flex w-full items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-semibold transition lg:w-auto ${
                 nextcloudConfigured
                   ? 'border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100'
                   : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
@@ -698,7 +698,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             <button
               type="button"
               onClick={() => setShowHelpModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:w-auto"
               title="Panduan Penggunaan Aplikasi"
             >
               <HelpCircle className="w-4 h-4 text-blue-600" />
@@ -708,7 +708,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             <button
               type="button"
               onClick={() => setShowVendorModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:w-auto"
               title="Atur Logo & Nama Proyek"
             >
               <Building2 className="w-4 h-4 text-slate-600" />
@@ -719,7 +719,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               type="button"
               disabled={zipExporting}
               onClick={handleExportZip}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 lg:w-auto"
               title="Simpan paket proyek (.zip) untuk pindah HP/Laptop"
             >
               <Archive className="w-4 h-4 text-slate-600" />
@@ -731,7 +731,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             <button
               type="button"
               onClick={() => setShowExportPdf(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition"
+              className="col-span-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition lg:col-span-1 lg:w-auto"
             >
               <FileDown className="w-4 h-4" />
               <span>Preview & Export PDF</span>
