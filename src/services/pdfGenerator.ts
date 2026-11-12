@@ -391,14 +391,18 @@ function drawPageHeader(
     );
   }
 
-  // Columns 3 & 4: 4 Metadata Rows (Region, OLT Name, Cluster Name, Cluster ID)
+  // Columns 3 & 4: Metadata rows, including a custom title when provided
   const metaRows: Array<[string, string]> = [
     ['Region', header.region],
     ['OLT Name', header.oltName],
     [docType === 'CW_SF' ? 'Subfeeder Name' : 'Cluster Name', header.clusterName],
     [docType === 'CW_SF' ? 'Subfeeder ID' : 'Cluster ID', header.clusterId],
   ];
-  const rowH = h / 4;
+  const customTitle = header.headerTitle?.trim();
+  if (customTitle) {
+    metaRows.unshift(['Header Title', customTitle]);
+  }
+  const rowH = h / metaRows.length;
 
   metaRows.forEach(([label, val], idx) => {
     const ry = yTop + idx * rowH;
@@ -471,7 +475,14 @@ export async function generateDocumentPdf(
 
   for (let pageIdx = 0; pageIdx < doc.pages.length; pageIdx++) {
     const page = doc.pages[pageIdx];
-    const m = getLayoutMetrics(page);
+    const baseMetrics = getLayoutMetrics(page);
+    const customTitle = doc.header.headerTitle?.trim();
+    const additionalRowHeight = customTitle ? baseMetrics.headerH / 4 : 0;
+    const m = {
+      ...baseMetrics,
+      headerH: baseMetrics.headerH + additionalRowHeight,
+      gridTop: baseMetrics.gridTop + additionalRowHeight,
+    };
 
     if (pageIdx > 0) {
       pdf.addPage('a4', 'portrait');
