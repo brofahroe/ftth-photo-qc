@@ -3,11 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { Server as SocketIOServer } from 'socket.io';
-
-// Load .env
-dotenv.config();
 
 import { initDatabase } from './db/schema.js';
 import { startNextcloudQueueWorker } from './services/nextcloud.js';

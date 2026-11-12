@@ -78,8 +78,8 @@ Aplikasi ini mendukung kolaborasi langsung di lapangan antar beberapa teknisi ya
 
 `vercel.json` hanya men-deploy frontend statis. Backend Photo QC (Express, SQLite, upload file, Socket.IO, dan worker Nextcloud) harus dijalankan pada host Node.js terpisah dengan penyimpanan persisten.
 
-1. Deploy repository di host Node.js dan jalankan `npm run server`. Pastikan host menyediakan penyimpanan persisten untuk folder `data/` dan `uploads/`.
-2. Atur `NEXTCLOUD_URL`, `NEXTCLOUD_USERNAME`, dan `NEXTCLOUD_PASSWORD` pada environment backend tersebut, lalu restart/redeploy backend.
+1. Deploy repository di host Node.js dan jalankan `npm run server` (Node.js 22+). Pasang persistent disk pada `/app/storage`; database SQLite, foto, dan PDF akan disimpan di sana.
+2. Atur `NEXTCLOUD_URL`, `NEXTCLOUD_USERNAME`, dan `NEXTCLOUD_PASSWORD` pada environment backend tersebut, lalu restart/redeploy backend. Untuk Docker, direktori storage dapat diubah lewat `PHOTOQC_STORAGE_DIR`.
 3. Di Vercel, atur `VITE_API_URL` ke URL publik backend, misalnya `https://photo-qc-api.example.com` (tanpa `/` di akhir), untuk environment Production.
 4. Redeploy frontend Vercel agar `VITE_API_URL` masuk ke build. Jangan gunakan prefix `VITE_` untuk kredensial Nextcloud karena variabel `VITE_*` tersedia di browser.
 5. Buka aplikasi dan pilih **Nextcloud** → **Tes Koneksi WebDAV**.

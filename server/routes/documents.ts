@@ -35,7 +35,12 @@ documentsRouter.get('/', (req: Request, res: Response) => {
 // GET single document by ID
 documentsRouter.get('/:id', (req: Request, res: Response) => {
   try {
-    const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id) as any;
+    const id = req.params.id;
+    if (typeof id !== 'string') {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
+    const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(id) as any;
     if (!doc) {
       return res.status(404).json({ error: 'Document not found' });
     }
@@ -47,7 +52,7 @@ documentsRouter.get('/:id', (req: Request, res: Response) => {
              nextcloud_path, created_at, updated_at
       FROM photos
       WHERE document_id = ?
-    `).all(req.params.id) as any[];
+    `).all(id) as any[];
 
     const photosMap: Record<string, any> = {};
     for (const p of photos) {
@@ -127,7 +132,11 @@ documentsRouter.post('/', (req: Request, res: Response) => {
 // PUT update document
 documentsRouter.put('/:id', (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id;
+    if (typeof id !== 'string') {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
     const existing = db.prepare('SELECT id FROM documents WHERE id = ?').get(id);
     if (!existing) {
       return res.status(404).json({ error: 'Document not found' });
@@ -169,7 +178,11 @@ documentsRouter.put('/:id', (req: Request, res: Response) => {
 // DELETE document
 documentsRouter.delete('/:id', (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id;
+    if (typeof id !== 'string') {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
+
     db.prepare('DELETE FROM documents WHERE id = ?').run(id);
     res.json({ success: true, id });
   } catch (error: any) {

@@ -8,17 +8,17 @@ import {
   processNextcloudQueue,
   getNextcloudConfig,
 } from '../services/nextcloud.js';
+import { ensureStorageDir, pdfUploadsDir } from '../storage.js';
 
 export const nextcloudRouter = Router();
 
-const pdfDir = path.resolve(process.cwd(), 'uploads', 'pdfs');
-if (!fs.existsSync(pdfDir)) {
-  fs.mkdirSync(pdfDir, { recursive: true });
+if (!fs.existsSync(pdfUploadsDir)) {
+  ensureStorageDir(pdfUploadsDir);
 }
 
 const pdfUpload = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, pdfDir),
+    destination: (req, file, cb) => cb(null, pdfUploadsDir),
     filename: (req, file, cb) => {
       const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       cb(null, `${path.parse(file.originalname).name}_${uniqueSuffix}.pdf`);

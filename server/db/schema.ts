@@ -1,10 +1,10 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
+import { dataDir, ensureStorageDir } from '../storage.js';
 
-const dataDir = path.resolve(process.cwd(), 'data');
 if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+  ensureStorageDir(dataDir);
 }
 
 const dbPath = path.join(dataDir, 'photoqc.db');

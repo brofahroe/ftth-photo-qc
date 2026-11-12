@@ -2,6 +2,7 @@ import { createClient, WebDAVClient } from 'webdav';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db } from '../db/schema.js';
+import { uploadsDir } from '../storage.js';
 
 let client: WebDAVClient | null = null;
 let isConfigured = false;
@@ -165,8 +166,6 @@ export async function processNextcloudQueue(): Promise<void> {
         }
 
         const docTitle = (photo.doc_title || 'DOC').replace(/[^a-zA-Z0-9 _-]/g, '_');
-        const uploadDir = path.resolve(process.cwd(), 'uploads');
-
         // Prefer rendered file, fallback to raw
         const localFileName = photo.rendered_file_name || photo.raw_file_name;
         if (!localFileName) {
@@ -174,7 +173,7 @@ export async function processNextcloudQueue(): Promise<void> {
           continue;
         }
 
-        const localFilePath = path.join(uploadDir, localFileName);
+        const localFilePath = path.join(uploadsDir, localFileName);
         if (!fs.existsSync(localFilePath)) {
           db.prepare(`UPDATE photos SET nextcloud_status = 'failed', nextcloud_error = 'Local file missing' WHERE id = ?`).run(photo.id);
           continue;

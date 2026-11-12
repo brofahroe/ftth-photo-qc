@@ -4,12 +4,12 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { db } from '../db/schema.js';
 import { processNextcloudQueue } from '../services/nextcloud.js';
+import { ensureStorageDir, uploadsDir } from '../storage.js';
 
 export const photosRouter = Router();
 
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+  ensureStorageDir(uploadsDir);
 }
 
 // Multer storage config
@@ -38,13 +38,14 @@ photosRouter.post(
   ]),
   (req: Request, res: Response) => {
     try {
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+      const files = Array.isArray(req.files) ? undefined : req.files;
       const renderedFile = files?.renderedImage?.[0];
-      const rawFile = files?.rawImage?.[0] || renderedFile;
 
       if (!renderedFile) {
         return res.status(400).json({ error: 'Rendered image file is required' });
       }
+
+      const rawFileName = files?.rawImage?.[0]?.filename ?? renderedFile.filename;
 
       const {
         id,
@@ -101,7 +102,7 @@ photosRouter.post(
         pageId || null,
         parsedSlotIndex,
         capturedBy || 'Teknisi Lapangan',
-        rawFile ? path.basename(rawFile.filename) : path.basename(renderedFile.filename),
+        path.basename(rawFileName),
         path.basename(renderedFile.filename),
         parsedRotation,
         parsedWatermarkEnabled,
@@ -195,7 +196,12 @@ photosRouter.post(
 // GET rendered photo binary
 photosRouter.get('/:id/rendered', (req: Request, res: Response) => {
   try {
-    const photo = db.prepare('SELECT rendered_file_name, raw_file_name FROM photos WHERE id = ?').get(req.params.id) as any;
+    const id = req.params.id;
+    if (typeof id !== 'string') {
+      return res.status(400).send('Invalid photo ID');
+    }
+
+    const photo = db.prepare('SELECT rendered_file_name, raw_file_name FROM photos WHERE id = ?').get(id) as any;
     if (!photo) {
       return res.status(404).send('Photo not found');
     }
@@ -218,7 +224,12 @@ photosRouter.get('/:id/rendered', (req: Request, res: Response) => {
 // GET raw photo binary
 photosRouter.get('/:id/raw', (req: Request, res: Response) => {
   try {
-    const photo = db.prepare('SELECT raw_file_name, rendered_file_name FROM photos WHERE id = ?').get(req.params.id) as any;
+    const id = req.params.id;
+    if (typeof id !== 'string') {
+      return res.status(400).send('Invalid photo ID');
+    }
+
+    const photo = db.prepare('SELECT raw_file_name, rendered_file_name FROM photos WHERE id = ?').get(id) as any;
     if (!photo) {
       return res.status(404).send('Photo not found');
     }
@@ -241,7 +252,11 @@ photosRouter.get('/:id/raw', (req: Request, res: Response) => {
 // DELETE photo
 photosRouter.delete('/:id', (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id;
+    if (typeof id !== 'string') {
+      return res.status(400).json({ error: 'Invalid photo ID' });
+    }
+
     const photo = db.prepare('SELECT * FROM photos WHERE id = ?').get(id) as any;
     if (photo) {
       if (photo.rendered_file_name) {
