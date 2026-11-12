@@ -33,6 +33,8 @@ import {
   buildHeaderTitle,
   DOCUMENT_TYPES,
   generateId,
+  getElectricalFdtCode,
+  getNextOutputSplitterNumber,
   getPageDisplayName,
 } from '../presets/documentPresets';
 import {
@@ -464,6 +466,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
   const docMeta = DOCUMENT_TYPES[doc.docType];
   const docHeaderTitle = buildHeaderTitle(doc.docType, doc.header);
+  const headerEntityLabel =
+    doc.docType === 'CW_SF' || doc.docType === 'EL_SF' ? 'Subfeeder' : 'Cluster';
   const totalSlotsCount = doc.pages.reduce((s, p) => s + p.slots.length, 0);
   const totalFilledCount = doc.pages.reduce(
     (s, p) => s + p.slots.filter((sl) => Boolean(sl.photoId)).length,
@@ -500,8 +504,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 />
               </div>
               <p className="text-[11px] text-slate-500 truncate">
-                {doc.header.clusterId || `${doc.docType === 'CW_SF' ? 'Subfeeder ID' : 'Cluster ID'} belum diisi`} •{' '}
-                {doc.header.clusterName || `Nama ${doc.docType === 'CW_SF' ? 'Subfeeder' : 'Cluster'}`} • Terisi {totalFilledCount}/
+                {doc.header.clusterId || `${headerEntityLabel} ID belum diisi`} •{' '}
+                {doc.header.clusterName || `Nama ${headerEntityLabel}`} • Terisi {totalFilledCount}/
                 {totalSlotsCount} foto
               </p>
             </div>
@@ -583,7 +587,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               </div>
               <div className="text-[11px] text-slate-500">
                 Klik untuk {headerExpanded ? 'menyembunyikan' : 'mengubah'} data Region, OLT,
-                Cluster Name & Cluster ID
+                {` ${headerEntityLabel} Name & ${headerEntityLabel} ID`}
               </div>
               </div>
             </div>
@@ -709,7 +713,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Cluster Name
+                    {headerEntityLabel} Name
                   </label>
                   {!manualHeaderInput && siteLookups.clustersByName.length > 0 ? (
                     <select
@@ -730,7 +734,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       }}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold focus:border-blue-600 focus:outline-none"
                     >
-                      <option value="">-- Pilih Cluster Name --</option>
+                      <option value="">-- Pilih {headerEntityLabel} Name --</option>
                       {siteLookups.clustersByName.map((c) => (
                         <option key={`${c.clusterId}-${c.clusterName}`} value={c.clusterName}>
                           {c.clusterName} ({c.clusterId})
@@ -756,7 +760,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Cluster ID
+                    {headerEntityLabel} ID
                   </label>
                   {!manualHeaderInput && siteLookups.clusters.length > 0 ? (
                     <select
@@ -777,7 +781,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       }}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold focus:border-blue-600 focus:outline-none"
                     >
-                      <option value="">-- Pilih Cluster ID --</option>
+                      <option value="">-- Pilih {headerEntityLabel} ID --</option>
                       {siteLookups.clusters.map((c) => (
                         <option key={`${c.clusterId}-${c.clusterName}`} value={c.clusterId}>
                           {c.clusterId} — {c.clusterName}
@@ -1067,6 +1071,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         <AddPageModal
           docType={doc.docType}
           existingPagesCount={doc.pages.length}
+          defaultFdtCode={
+            doc.docType === 'EL_SF'
+              ? getElectricalFdtCode(doc.pages) ?? 'BLA-CPU-D41'
+              : undefined
+          }
+          defaultSplitterNumber={
+            doc.docType === 'EL_SF' ? getNextOutputSplitterNumber(doc.pages) : undefined
+          }
           clusterId={doc.header.clusterId}
           clusterName={doc.header.clusterName}
           onAddPages={handleAddPages}

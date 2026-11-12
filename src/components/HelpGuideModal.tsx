@@ -154,8 +154,9 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                     <p className="text-xs text-slate-600 leading-relaxed">
                       Klik tombol <strong>Buat Dokumen Baru</strong>, pilih kategori laporan (
                       <strong>FOTO CW</strong> (sudah termasuk halaman Implementasi),{' '}
-                      <strong>FOTO CW SF</strong>, atau <strong>FOTO EL</strong>, lalu isi data{' '}
-                      <em>Region</em>, <em>OLT Name</em>, <em>Cluster Name</em>, dan <em>Cluster ID</em>.
+                      <strong>FOTO CW SF</strong>, <strong>FOTO EL</strong>, atau{' '}
+                      <strong>FOTO EL SF</strong>, lalu isi data <em>Region</em>, <em>OLT Name</em>,
+                      dan data Cluster/Subfeeder.
                     </p>
                   </div>
 
@@ -339,6 +340,21 @@ export const HelpGuideModal: React.FC<HelpGuideModalProps> = ({
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* EL SF */}
+                <div className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-800 border border-violet-200">
+                      FOTO EL SF (Electrical / Subfeeder)
+                    </span>
+                    <span className="text-xs font-bold text-slate-600">8 Halaman Awal</span>
+                  </div>
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    Mengikuti contoh <code>FOTO EL SF.pdf</code>: Input Splitter (4 kotak) dan
+                    Output Splitter 1–3 (masing-masing 8 kotak) untuk 1310nm dan 1550nm. Header PDF
+                    menggunakan label Subfeeder Name dan Subfeeder ID.
+                  </p>
                 </div>
 
                 {/* Implementation page included in CW documents */}

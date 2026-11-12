@@ -369,11 +369,15 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                           ['Region', doc.header.region],
                           ['OLT Name', doc.header.oltName],
                           [
-                            doc.docType === 'CW_SF' ? 'Subfeeder Name' : 'Cluster Name',
+                            doc.docType === 'CW_SF' || doc.docType === 'EL_SF'
+                              ? 'Subfeeder Name'
+                              : 'Cluster Name',
                             doc.header.clusterName,
                           ],
                           [
-                            doc.docType === 'CW_SF' ? 'Subfeeder ID' : 'Cluster ID',
+                            doc.docType === 'CW_SF' || doc.docType === 'EL_SF'
+                              ? 'Subfeeder ID'
+                              : 'Cluster ID',
                             doc.header.clusterId,
                           ],
                         ].map(([label, val]) => (
@@ -458,7 +462,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span>
                     Terdapat <strong>{emptySlots} kotak foto kosong</strong>. Anda tetap bisa
-                    convert ke PDF sekarang (pada FOTO EL, kotak kosong otomatis diberi nomor urut).
+                    convert ke PDF sekarang (pada FOTO EL/EL SF, kotak kosong otomatis diberi nomor urut).
                   </span>
                 </div>
               )}

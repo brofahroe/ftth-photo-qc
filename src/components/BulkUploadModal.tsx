@@ -1,6 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { FolderUp, Loader2, Sparkles, UploadCloud, X } from 'lucide-react';
-import { createDocumentPage } from '../presets/documentPresets';
+import {
+  createDocumentPage,
+  getElectricalFdtCode,
+  getNextOutputSplitterNumber,
+} from '../presets/documentPresets';
 import { createPhotoFromUpload } from '../services/photoManager';
 import {
   DocumentHeader,
@@ -39,6 +43,8 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
       ? 'CW_FAT'
       : docType === 'CW_SF'
         ? 'CW_SF_POLE'
+      : docType === 'EL_SF'
+        ? 'EL_OUTPUT_SPLITTER'
       : docType === 'EL'
         ? 'EL_OPM_FAT'
         : 'IMPLE_STANDARD'
@@ -48,11 +54,19 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
       ? 'S01-A'
       : docType === 'CW_SF'
         ? 'Pole SF ext '
+        : docType === 'EL_SF'
+          ? getElectricalFdtCode(pages) || 'BLA-CPU-D41'
         : docType === 'EL'
           ? 'A01 S'
           : ''
   );
-  const [startSequence, setStartSequence] = useState<number>(docType === 'CW_SF' ? 2 : 1);
+  const [startSequence, setStartSequence] = useState<number>(
+    docType === 'CW_SF'
+      ? 2
+      : docType === 'EL_SF'
+        ? getNextOutputSplitterNumber(pages)
+        : 1
+  );
   const [processing, setProcessing] = useState<boolean>(false);
   const [progressText, setProgressText] = useState<string>('');
 
@@ -115,6 +129,8 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
         const generatedCode =
           docType === 'CW_SF' && newPagePreset === 'CW_SF_POLE'
             ? `${codePrefix}${seqCounter}`
+            : docType === 'EL_SF'
+              ? codePrefix.trim() || getElectricalFdtCode(pages) || 'BLA-CPU-D41'
             : `${codePrefix}${paddedNo}`;
         seqCounter++;
 
@@ -281,6 +297,11 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                       <option value="CW_SF_POLE">Pole SF — 4 Kotak per Halaman</option>
                       <option value="CW_FDT">FDT — 6 Kotak per Halaman</option>
                     </>
+                  ) : docType === 'EL_SF' ? (
+                    <>
+                      <option value="EL_OUTPUT_SPLITTER">Output Splitter — 8 Kotak per Halaman</option>
+                      <option value="EL_INPUT_SPLITTER">Input Splitter — 4 Kotak per Halaman</option>
+                    </>
                   ) : (
                     <>
                       <option value="EL_OPM_FAT">OPM FAT — 8 Kotak per Halaman</option>
@@ -292,19 +313,19 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Awalan Kode Otomatis
+                  {docType === 'EL_SF' ? 'Kode FDT' : 'Awalan Kode Otomatis'}
                 </label>
                 <input
                   type="text"
                   value={codePrefix}
                   onChange={(e) => setCodePrefix(e.target.value)}
-                  placeholder="S01-A"
+                  placeholder={docType === 'EL_SF' ? 'BLA-CPU-D41' : 'S01-A'}
                   className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Mulai Nomor Urut
+                  {docType === 'EL_SF' ? 'Nomor Splitter Berikutnya' : 'Mulai Nomor Urut'}
                 </label>
                 <input
                   type="number"

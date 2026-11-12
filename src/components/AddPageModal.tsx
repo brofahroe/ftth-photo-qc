@@ -10,6 +10,7 @@ interface AddPageModalProps {
   docType: DocumentType;
   existingPagesCount: number;
   defaultFdtCode?: string;
+  defaultSplitterNumber?: number;
   clusterId?: string;
   clusterName?: string;
   onAddPages: (pages: DocumentPage[]) => void;
@@ -20,6 +21,7 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
   docType,
   existingPagesCount,
   defaultFdtCode = 'BLA-CPU-D05',
+  defaultSplitterNumber = 1,
   clusterId,
   clusterName,
   onAddPages,
@@ -50,6 +52,8 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
       ? 'CW_FAT'
       : docType === 'CW_SF'
         ? 'CW_SF_POLE'
+      : docType === 'EL_SF'
+        ? 'EL_OUTPUT_SPLITTER'
       : docType === 'EL'
         ? 'EL_OPM_FAT'
         : 'IMPLE_STANDARD';
@@ -60,12 +64,14 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
       ? `S01-A0${Math.max(1, existingPagesCount)}`
       : docType === 'CW_SF'
         ? `Pole SF ext ${Math.max(1, existingPagesCount)}`
+      : docType === 'EL_SF'
+        ? defaultFdtCode || 'BLA-CPU-D41'
       : docType === 'EL'
         ? 'A01 S01'
         : ''
   );
   const [fdtCode, setFdtCode] = useState<string>(defaultFdtCode || 'BLA-CPU-D41');
-  const [splitterNo, setSplitterNo] = useState<number>(1);
+  const [splitterNo, setSplitterNo] = useState<number>(defaultSplitterNumber);
   const [startNumber, setStartNumber] = useState<number>(1);
   const [wavelengthMode, setWavelengthMode] = useState<'BOTH' | '1310nm' | '1550nm' | 'CUSTOM'>(
     'BOTH'
@@ -146,7 +152,7 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
       return;
     }
 
-    // docType === 'EL'
+    // Electrical document types share the same splitter page templates.
     const wavelengths =
       wavelengthMode === 'BOTH'
         ? ['1310nm', '1550nm']
@@ -336,11 +342,11 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
             </>
           )}
 
-          {docType === 'EL' && (
+          {(docType === 'EL' || docType === 'EL_SF') && (
             <>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">
-                  Tipe Halaman FOTO EL
+                  Tipe Halaman {docType === 'EL_SF' ? 'FOTO EL SF' : 'FOTO EL'}
                 </label>
                 <div className="grid grid-cols-1 gap-2">
                   {[
@@ -359,7 +365,7 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                       title: 'OPM FAT (8 Kotak)',
                       sub: 'Port 1 s/d Port 8 per FAT',
                     },
-                  ].map((item) => (
+                  ].filter((item) => docType !== 'EL_SF' || item.id !== 'EL_OPM_FAT').map((item) => (
                     <button
                       key={item.id}
                       type="button"

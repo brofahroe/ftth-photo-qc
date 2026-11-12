@@ -1,4 +1,4 @@
-export type DocumentType = 'CW' | 'CW_SF' | 'EL' | 'IMPLE';
+export type DocumentType = 'CW' | 'CW_SF' | 'EL' | 'EL_SF' | 'IMPLE';
 
 export type PagePresetType =
   | 'CW_FDT'

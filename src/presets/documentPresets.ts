@@ -21,8 +21,31 @@ export function buildHeaderTitle(
     return customTitle;
   }
 
-  const label = docType === 'CW_SF' ? 'Subfeeder' : 'Tabel Cluster';
+  const label = docType === 'CW_SF' || docType === 'EL_SF' ? 'Subfeeder' : 'Tabel Cluster';
   return `Header ${label}: ${header.region || '—'} / ${header.oltName || '—'} / ${header.clusterName || '—'} (${header.clusterId || '—'})`;
+}
+
+export function getElectricalFdtCode(pages: DocumentPage[]): string | null {
+  for (const page of pages) {
+    if (page.preset !== 'EL_INPUT_SPLITTER' && page.preset !== 'EL_OUTPUT_SPLITTER') continue;
+    const fdtLine = page.headerBottomText
+      .split('\n')
+      .find((line) => /^FDT\b/i.test(line.trim()));
+    if (fdtLine) {
+      return fdtLine.trim().replace(/^FDT\s*/i, '').replace(/^\((.*)\)$/, '$1');
+    }
+  }
+  return null;
+}
+
+export function getNextOutputSplitterNumber(pages: DocumentPage[]): number {
+  return (
+    pages.reduce((maxNumber, page) => {
+      if (page.preset !== 'EL_OUTPUT_SPLITTER') return maxNumber;
+      const match = page.headerBottomText.match(/^OUTPUT SPLITTER\s+(\d+)/i);
+      return match ? Math.max(maxNumber, Number(match[1])) : maxNumber;
+    }, 0) + 1
+  );
 }
 
 export interface DocumentTypeMeta {
@@ -58,6 +81,14 @@ export const DOCUMENT_TYPES: Record<DocumentType, DocumentTypeMeta> = {
     defaultFileName: 'FOTO EL',
     description: '4 foto Input Splitter & 8 foto Output Splitter / OPM FAT (1310nm & 1550nm).',
     badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
+  },
+  EL_SF: {
+    type: 'EL_SF',
+    label: 'FOTO EL SF (Electrical / Subfeeder)',
+    shortLabel: 'FOTO EL SF',
+    defaultFileName: 'FOTO EL SF',
+    description: 'Dokumentasi Input Splitter dan Output Splitter 1–3 untuk 1310nm & 1550nm.',
+    badgeColor: 'bg-violet-100 text-violet-800 border-violet-200',
   },
   IMPLE: {
     type: 'IMPLE',

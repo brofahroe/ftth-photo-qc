@@ -395,8 +395,14 @@ function drawPageHeader(
   const metaRows: Array<[string, string]> = [
     ['Region', header.region],
     ['OLT Name', header.oltName],
-    [docType === 'CW_SF' ? 'Subfeeder Name' : 'Cluster Name', header.clusterName],
-    [docType === 'CW_SF' ? 'Subfeeder ID' : 'Cluster ID', header.clusterId],
+    [
+      docType === 'CW_SF' || docType === 'EL_SF' ? 'Subfeeder Name' : 'Cluster Name',
+      header.clusterName,
+    ],
+    [
+      docType === 'CW_SF' || docType === 'EL_SF' ? 'Subfeeder ID' : 'Cluster ID',
+      header.clusterId,
+    ],
   ];
   const customTitle = header.headerTitle?.trim();
   if (customTitle) {

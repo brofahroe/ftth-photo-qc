@@ -138,6 +138,8 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
   const otherFdtSites = sites.filter(
     (s) => s.fdtId && !clusterFdtSites.some((cf) => cf.id === s.id)
   );
+  const headerEntityLabel =
+    docType === 'CW_SF' || docType === 'EL_SF' ? 'Subfeeder' : 'Cluster';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,6 +178,27 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
             wavelength: '1550nm',
           })
         );
+      } else if (docType === 'EL_SF') {
+        const fdt = firstDeviceCode || 'BLA-CPU-D41';
+        for (const wavelength of ['1310nm', '1550nm']) {
+          initialPages.push(
+            createDocumentPage({
+              preset: 'EL_INPUT_SPLITTER',
+              deviceCode: fdt,
+              wavelength,
+            })
+          );
+          for (let splitterNumber = 1; splitterNumber <= 3; splitterNumber++) {
+            initialPages.push(
+              createDocumentPage({
+                preset: 'EL_OUTPUT_SPLITTER',
+                deviceCode: fdt,
+                splitterNumber,
+                wavelength,
+              })
+            );
+          }
+        }
       } else {
         initialPages.push(createDocumentPage({ preset: 'IMPLE_STANDARD' }));
       }
@@ -227,7 +250,7 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
               1. Pilih Jenis Dokumen
             </label>
             <div className="grid grid-cols-1 gap-2.5">
-              {(['CW', 'CW_SF', 'EL'] as DocumentType[]).map((type) => {
+              {(['CW', 'CW_SF', 'EL', 'EL_SF'] as DocumentType[]).map((type) => {
                 const meta = DOCUMENT_TYPES[type];
                 const active = docType === type;
                 return (
@@ -261,7 +284,7 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
             <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
               <div className="flex items-center gap-2 text-xs text-slate-700 font-medium">
                 <Copy className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>Salin data Cluster dari dokumen sebelumnya:</span>
+                <span>Salin data {headerEntityLabel} dari dokumen sebelumnya:</span>
               </div>
               <select
                 defaultValue=""
@@ -284,7 +307,7 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
           <div className="space-y-3 pt-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                2. Nama File & Informasi Header Cluster
+                2. Nama File & Informasi Header {headerEntityLabel}
               </label>
 
               <div className="flex items-center gap-1.5">
@@ -393,10 +416,10 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
                 )}
               </div>
 
-              {/* Cluster Name */}
+              {/* Cluster or subfeeder name */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Cluster Name
+                  {headerEntityLabel} Name
                 </label>
                 {!manualInputMode && lookups.clustersByName.length > 0 ? (
                   <select
@@ -404,7 +427,7 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
                     onChange={(e) => handleSelectClusterByName(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-blue-600 focus:outline-none"
                   >
-                    <option value="">-- Pilih Cluster Name --</option>
+                    <option value="">-- Pilih {headerEntityLabel} Name --</option>
                     {lookups.clustersByName.map((c) => (
                       <option key={`${c.clusterId}-${c.clusterName}`} value={c.clusterName}>
                         {c.clusterName} ({c.clusterId})
@@ -426,16 +449,18 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
                 )}
               </div>
 
-              {/* Cluster ID */}
+              {/* Cluster or subfeeder ID */}
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Cluster ID</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  {headerEntityLabel} ID
+                </label>
                 {!manualInputMode && lookups.clusters.length > 0 ? (
                   <select
                     value={clusterId}
                     onChange={(e) => handleSelectClusterById(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-blue-600 focus:outline-none"
                   >
-                    <option value="">-- Pilih Cluster ID --</option>
+                    <option value="">-- Pilih {headerEntityLabel} ID --</option>
                     {lookups.clusters.map((c) => (
                       <option key={`${c.clusterId}-${c.clusterName}`} value={c.clusterId}>
                         {c.clusterId} — {c.clusterName}
@@ -523,7 +548,8 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
           <div className="rounded-xl bg-blue-50/70 border border-blue-100 px-3.5 py-2.5 flex items-start gap-2.5 text-xs text-blue-900">
             <Layers className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
             <span>
-              Memilih <strong>Cluster Name</strong>, <strong>Cluster ID</strong>, atau{' '}
+              Memilih <strong>{headerEntityLabel} Name</strong>,{' '}
+              <strong>{headerEntityLabel} ID</strong>, atau{' '}
               <strong>Kode FDT</strong> pada dropdown akan mengisi kolom lainnya secara otomatis
               sesuai tabel referensi <code>Sitelist.csv</code>.
             </span>

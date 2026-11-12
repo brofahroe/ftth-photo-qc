@@ -226,7 +226,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-                  Dokumentasi Foto CW (termasuk Implementasi), CW SF, & EL (OPM) • Watermark opsional
+                  Dokumentasi Foto CW, CW SF, EL, dan EL SF • Watermark opsional
                 </p>
               </div>
             </div>
@@ -318,6 +318,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
               {
                 id: 'EL' as const,
                 label: `FOTO EL (${docs.filter((d) => d.docType === 'EL').length})`,
+              },
+              {
+                id: 'EL_SF' as const,
+                label: `FOTO EL SF (${docs.filter((d) => d.docType === 'EL_SF').length})`,
               },
               ...(docs.some((d) => d.docType === 'IMPLE')
                 ? [
