@@ -22,7 +22,5 @@ ENV PORT=3001
 ENV NODE_ENV=production
 ENV PHOTOQC_STORAGE_DIR=/app/storage
 
-VOLUME ["/app/storage"]
-
 # Start Node server
 CMD ["npm", "run", "start"]
