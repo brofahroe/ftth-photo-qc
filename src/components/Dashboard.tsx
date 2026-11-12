@@ -158,6 +158,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
     );
   });
 
+  const groupedDocs = filteredDocs.reduce<Record<string, { key: string; clusterName: string; clusterId: string; region: string; oltName: string; docs: QcDocument[] }>>(
+    (acc, doc) => {
+      const clusterName = (doc.header.clusterName || 'Cluster belum diisi').trim();
+      const clusterId = (doc.header.clusterId || 'Cluster ID belum diisi').trim();
+      const region = (doc.header.region || '—').trim();
+      const oltName = (doc.header.oltName || '—').trim();
+      const key = `${region.toLowerCase()}|${oltName.toLowerCase()}|${clusterName.toLowerCase()}|${clusterId.toLowerCase()}`;
+
+      if (!acc[key]) {
+        acc[key] = {
+          key,
+          clusterName,
+          clusterId,
+          region,
+          oltName,
+          docs: [],
+        };
+      }
+
+      acc[key].docs.push(doc);
+      return acc;
+    },
+    {}
+  );
+
+  const orderedGroups = Object.values(groupedDocs).sort((a, b) => {
+    const aLabel = `${a.region} ${a.oltName} ${a.clusterName}`.toLowerCase();
+    const bLabel = `${b.region} ${b.oltName} ${b.clusterName}`.toLowerCase();
+    return aLabel.localeCompare(bLabel);
+  });
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       {/* Top Hero Banner */}
@@ -366,128 +397,150 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDocs.map((doc) => {
-              const meta = DOCUMENT_TYPES[doc.docType];
-              const totalSlots = doc.pages.reduce((s, p) => s + p.slots.length, 0);
-              const filledSlots = doc.pages.reduce(
-                (s, p) => s + p.slots.filter((sl) => Boolean(sl.photoId)).length,
-                0
-              );
-              const pct = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
-
-              return (
-                <div
-                  key={doc.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs hover:shadow-md transition flex flex-col justify-between gap-4"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <span
-                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${meta.badgeColor}`}
-                      >
-                        {meta.shortLabel}
-                      </span>
-                      <div className="flex items-center gap-1.5 border border-slate-100 rounded-md px-1.5 py-0.5">
-                        <img
-                          src={doc.header.customLeftLogoDataUrl || DEFAULT_ZTE_LOGO}
-                          alt="Vendor 1"
-                          className="h-3.5 object-contain"
-                        />
-                        {!doc.header.hideRightLogo && (
-                          <img
-                            src={doc.header.customRightLogoDataUrl || DEFAULT_MORA_LOGO}
-                            alt="Vendor 2"
-                            className="h-3.5 object-contain"
-                          />
-                        )}
-                      </div>
-                    </div>
-
-                    <div
-                      onClick={() => onOpenDocument(doc.id)}
-                      className="cursor-pointer group"
-                    >
-                      <h3 className="font-bold text-base text-slate-900 group-hover:text-blue-600 transition truncate">
-                        {doc.title}
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5 truncate">
-                        {doc.header.clusterName || 'Cluster belum diisi'}{' '}
-                        {doc.header.clusterId ? `(${doc.header.clusterId})` : ''}
-                      </p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Region: {doc.header.region || '—'} • OLT: {doc.header.oltName || '—'}
-                      </p>
-                    </div>
-
-                    {/* Completion Bar */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-700">
-                          {doc.pages.length} Halaman • {filledSlots}/{totalSlots} Foto
+          <div className="space-y-5">
+            {orderedGroups.map((group) => (
+              <section key={group.key} className="space-y-3">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-sm font-extrabold uppercase tracking-wide text-slate-900 truncate">
+                        {group.clusterName}
+                      </h2>
+                      {group.clusterId && group.clusterId !== 'Cluster ID belum diisi' && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                          {group.clusterId}
                         </span>
-                        <span className="font-bold text-slate-900">{pct}%</span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-                        <div
-                          className={`h-full transition-all ${
-                            pct === 100 ? 'bg-emerald-500' : 'bg-blue-600'
-                          }`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                      )}
                     </div>
-                  </div>
-
-                  {/* Card Footer Buttons */}
-                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => onOpenDocument(doc.id)}
-                      className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 transition"
-                    >
-                      Buka & Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setExportTargetDoc(doc)}
-                      title="Export ke PDF"
-                      className="rounded-xl bg-emerald-50 border border-emerald-200 p-2 text-emerald-700 hover:bg-emerald-100"
-                    >
-                      <FileDown className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleExportZip(doc.id)}
-                      title="Simpan paket proyek (.zip)"
-                      className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-100"
-                    >
-                      <Archive className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDuplicateOutline(doc)}
-                      title="Salin kerangka dokumen ini (tanpa foto)"
-                      className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-100"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteDoc(doc)}
-                      title="Hapus Dokumen"
-                      className="rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Region: {group.region} • OLT: {group.oltName} • {group.docs.length} dokumen
+                    </p>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {group.docs.map((doc) => {
+                    const meta = DOCUMENT_TYPES[doc.docType];
+                    const totalSlots = doc.pages.reduce((s, p) => s + p.slots.length, 0);
+                    const filledSlots = doc.pages.reduce(
+                      (s, p) => s + p.slots.filter((sl) => Boolean(sl.photoId)).length,
+                      0
+                    );
+                    const pct = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
+
+                    return (
+                      <div
+                        key={doc.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs hover:shadow-md transition flex flex-col justify-between gap-4"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <span
+                              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${meta.badgeColor}`}
+                            >
+                              {meta.shortLabel}
+                            </span>
+                            <div className="flex items-center gap-1.5 border border-slate-100 rounded-md px-1.5 py-0.5">
+                              <img
+                                src={doc.header.customLeftLogoDataUrl || DEFAULT_ZTE_LOGO}
+                                alt="Vendor 1"
+                                className="h-3.5 object-contain"
+                              />
+                              {!doc.header.hideRightLogo && (
+                                <img
+                                  src={doc.header.customRightLogoDataUrl || DEFAULT_MORA_LOGO}
+                                  alt="Vendor 2"
+                                  className="h-3.5 object-contain"
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          <div
+                            onClick={() => onOpenDocument(doc.id)}
+                            className="cursor-pointer group"
+                          >
+                            <h3 className="font-bold text-base text-slate-900 group-hover:text-blue-600 transition truncate">
+                              {doc.title}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-0.5 truncate">
+                              {doc.header.clusterName || 'Cluster belum diisi'}{' '}
+                              {doc.header.clusterId ? `(${doc.header.clusterId})` : ''}
+                            </p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              Region: {doc.header.region || '—'} • OLT: {doc.header.oltName || '—'}
+                            </p>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-semibold text-slate-700">
+                                {doc.pages.length} Halaman • {filledSlots}/{totalSlots} Foto
+                              </span>
+                              <span className="font-bold text-slate-900">{pct}%</span>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                              <div
+                                className={`h-full transition-all ${
+                                  pct === 100 ? 'bg-emerald-500' : 'bg-blue-600'
+                                }`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => onOpenDocument(doc.id)}
+                            className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 transition"
+                          >
+                            Buka & Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setExportTargetDoc(doc)}
+                            title="Export ke PDF"
+                            className="rounded-xl bg-emerald-50 border border-emerald-200 p-2 text-emerald-700 hover:bg-emerald-100"
+                          >
+                            <FileDown className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleExportZip(doc.id)}
+                            title="Simpan paket proyek (.zip)"
+                            className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-100"
+                          >
+                            <Archive className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicateOutline(doc)}
+                            title="Salin kerangka dokumen ini (tanpa foto)"
+                            className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-100"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDoc(doc)}
+                            title="Hapus Dokumen"
+                            className="rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </main>

@@ -34,6 +34,8 @@ export interface DocumentHeader {
   oltName: string;     // e.g. "BALUN" or "CEPU"
   clusterName: string; // e.g. "KELURAHAN KAPUAN BLORA"
   clusterId: string;   // e.g. "CLRMO7-99-021"
+  /** Optional custom title shown in the document header banner; falls back to the auto-generated title */
+  headerTitle?: string | null;
   /** Optional custom left logo data URL (overrides default ZTE logo) */
   customLeftLogoDataUrl?: string | null;
   /** Optional custom right logo data URL (overrides default MoraRepublic logo) */

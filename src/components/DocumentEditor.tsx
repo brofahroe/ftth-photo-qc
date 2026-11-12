@@ -30,6 +30,7 @@ import {
   updateDocument,
 } from '../db/database';
 import {
+  buildHeaderTitle,
   DOCUMENT_TYPES,
   generateId,
   getPageDisplayName,
@@ -462,6 +463,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     watermarkSlot?.photoId ? photoMap.get(watermarkSlot.photoId) : undefined;
 
   const docMeta = DOCUMENT_TYPES[doc.docType];
+  const docHeaderTitle = buildHeaderTitle(doc.docType, doc.header);
   const totalSlotsCount = doc.pages.reduce((s, p) => s + p.slots.length, 0);
   const totalFilledCount = doc.pages.reduce(
     (s, p) => s + p.slots.filter((sl) => Boolean(sl.photoId)).length,
@@ -577,13 +579,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-slate-900 truncate">
-                  Header {doc.docType === 'CW_SF' ? 'Subfeeder' : 'Tabel Cluster'}: {doc.header.region || '—'} / {doc.header.oltName || '—'} /{' '}
-                  {doc.header.clusterName || '—'} ({doc.header.clusterId || '—'})
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  Klik untuk {headerExpanded ? 'menyembunyikan' : 'mengubah'} data Region, OLT,
-                  Cluster Name & Cluster ID
-                </div>
+                {docHeaderTitle}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Klik untuk {headerExpanded ? 'menyembunyikan' : 'mengubah'} data Region, OLT,
+                Cluster Name & Cluster ID
+              </div>
               </div>
             </div>
             {headerExpanded ? (
@@ -625,6 +626,21 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     <Database className="w-3.5 h-3.5" />
                     Tabel Referensi Site
                   </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Judul Header
+                  </label>
+                  <input
+                    type="text"
+                    value={doc.header.headerTitle ?? ''}
+                    onChange={(e) => handlePatchHeader({ headerTitle: e.target.value })}
+                    placeholder="Kosong = otomatis dari Region / OLT / Cluster"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold focus:border-blue-600 focus:outline-none"
+                  />
                 </div>
               </div>
 

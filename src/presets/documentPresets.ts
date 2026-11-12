@@ -6,10 +6,24 @@ export const DEFAULT_HEADER: DocumentHeader = {
   oltName: '',
   clusterName: '',
   clusterId: '',
+  headerTitle: '',
   customLeftLogoDataUrl: null,
   customRightLogoDataUrl: null,
   hideRightLogo: false,
 };
+
+export function buildHeaderTitle(
+  docType: DocumentType,
+  header: Pick<DocumentHeader, 'region' | 'oltName' | 'clusterName' | 'clusterId' | 'headerTitle'>
+): string {
+  const customTitle = header.headerTitle?.trim();
+  if (customTitle) {
+    return customTitle;
+  }
+
+  const label = docType === 'CW_SF' ? 'Subfeeder' : 'Tabel Cluster';
+  return `Header ${label}: ${header.region || '—'} / ${header.oltName || '—'} / ${header.clusterName || '—'} (${header.clusterId || '—'})`;
+}
 
 export interface DocumentTypeMeta {
   type: DocumentType;
