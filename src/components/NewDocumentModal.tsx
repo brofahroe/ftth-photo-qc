@@ -39,6 +39,11 @@ interface NewDocumentModalProps {
   onCreated: (doc: QcDocument) => void;
 }
 
+const buildDocumentTitle = (docType: DocumentType, clusterName: string) =>
+  [DOCUMENT_TYPES[docType].defaultFileName.trim(), clusterName.trim()]
+    .filter(Boolean)
+    .join(' - ');
+
 export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
   existingDocs,
   onClose,
@@ -57,7 +62,9 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
   const lookups = buildSiteReferenceLookups(sites);
 
   const [docType, setDocType] = useState<DocumentType>('CW');
-  const [title, setTitle] = useState<string>(DOCUMENT_TYPES.CW.defaultFileName);
+  const [title, setTitle] = useState<string>(
+    buildDocumentTitle('CW', 'KELURAHAN KAPUAN BLORA')
+  );
   const [projectName, setProjectName] = useState<string>(DEFAULT_HEADER.projectName);
   const [region, setRegion] = useState<string>('BLORA');
   const [oltName, setOltName] = useState<string>('BALUN');
@@ -69,6 +76,10 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
   const [showSiteTableModal, setShowSiteTableModal] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    setTitle(buildDocumentTitle(docType, clusterName));
+  }, [docType, clusterName]);
+
   const applySiteRecord = (site: SiteReferenceItem) => {
     if (site.region) setRegion(site.region);
     if (site.oltName) setOltName(site.oltName);
@@ -79,10 +90,6 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
 
   const handleSelectType = (next: DocumentType) => {
     setDocType(next);
-    const defaultTitles = Object.values(DOCUMENT_TYPES).map((d) => d.defaultFileName);
-    if (!title.trim() || defaultTitles.includes(title.trim())) {
-      setTitle(DOCUMENT_TYPES[next].defaultFileName);
-    }
   };
 
   const handleSelectClusterById = (selectedClusterId: string) => {
@@ -358,7 +365,7 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Contoh: FOTO CW - CLRM07-99-021"
+                  placeholder="Contoh: FOTO CW - KELURAHAN KAPUAN BLORA"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
                 />
               </div>
