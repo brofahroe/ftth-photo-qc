@@ -4,6 +4,8 @@ import {
   Archive,
   Building2,
   Camera,
+  ChevronDown,
+  ChevronRight,
   Copy,
   Database,
   Download,
@@ -52,6 +54,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
 
   const [filterType, setFilterType] = useState<'ALL' | DocumentType>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
   const [showNewModal, setShowNewModal] = useState<boolean>(false);
   const [showGlobalVendorModal, setShowGlobalVendorModal] = useState<boolean>(false);
   const [showSiteModal, setShowSiteModal] = useState<boolean>(false);
@@ -400,7 +403,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
           <div className="space-y-5">
             {orderedGroups.map((group) => (
               <section key={group.key} className="space-y-3">
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs">
+                <button
+                  type="button"
+                  aria-expanded={!collapsedGroups.has(group.key)}
+                  aria-controls={`group-docs-${group.key}`}
+                  onClick={() =>
+                    setCollapsedGroups((current) => {
+                      const next = new Set(current);
+                      if (next.has(group.key)) {
+                        next.delete(group.key);
+                      } else {
+                        next.add(group.key);
+                      }
+                      return next;
+                    })
+                  }
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-2xs transition hover:bg-slate-50"
+                >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="text-sm font-extrabold uppercase tracking-wide text-slate-900 truncate">
@@ -416,9 +435,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                       Region: {group.region} • OLT: {group.oltName} • {group.docs.length} dokumen
                     </p>
                   </div>
-                </div>
+                  {collapsedGroups.has(group.key) ? (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
+                  )}
+                </button>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div
+                  id={`group-docs-${group.key}`}
+                  hidden={collapsedGroups.has(group.key)}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                >
                   {group.docs.map((doc) => {
                     const meta = DOCUMENT_TYPES[doc.docType];
                     const totalSlots = doc.pages.reduce((s, p) => s + p.slots.length, 0);
