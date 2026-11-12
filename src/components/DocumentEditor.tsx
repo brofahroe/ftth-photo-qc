@@ -10,6 +10,7 @@ import {
   Camera,
   ChevronDown,
   ChevronUp,
+  Cloud,
   Copy,
   Database,
   Edit3,
@@ -20,6 +21,8 @@ import {
   Plus,
   Trash2,
   Upload,
+  User,
+  Users,
 } from 'lucide-react';
 import { DEFAULT_MORA_LOGO, DEFAULT_ZTE_LOGO } from '../assets/defaultLogos';
 import {
@@ -48,6 +51,22 @@ import {
   updatePhotoWatermark,
 } from '../services/photoManager';
 import {
+  joinDocumentRoom,
+  leaveDocumentRoom,
+  emitLockSlot,
+  emitUnlockSlot,
+  emitDocumentUpdated,
+  getSocket,
+} from '../services/socketService';
+import {
+  uploadPhotoToServer,
+  updateDocumentOnServer,
+  fetchPhotoFromServerAndCache,
+  syncDocumentAndPhotosFromServer,
+  getNextcloudStatus,
+} from '../services/apiSync';
+import { getStoredUserName, promptForUserNameIfNeeded, setStoredUserName } from '../services/userService';
+import {
   DocumentHeader,
   DocumentPage,
   PhotoRecord,
@@ -59,6 +78,7 @@ import { BulkUploadModal } from './BulkUploadModal';
 import { ExportPdfModal } from './ExportPdfModal';
 import { GuidedCameraModal } from './GuidedCameraModal';
 import { HelpGuideModal } from './HelpGuideModal';
+import { NextcloudModal } from './NextcloudModal';
 import { PhotoPreviewModal } from './PhotoPreviewModal';
 import { PhotoSlotCard } from './PhotoSlotCard';
 import { SiteReferenceModal } from './SiteReferenceModal';
@@ -102,16 +122,104 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [showVendorModal, setShowVendorModal] = useState<boolean>(false);
   const [showSiteModal, setShowSiteModal] = useState<boolean>(false);
   const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
+  const [showNextcloudModal, setShowNextcloudModal] = useState<boolean>(false);
+  const [nextcloudConfigured, setNextcloudConfigured] = useState<boolean>(false);
   const [cameraModalSlot, setCameraModalSlot] = useState<number | null>(null);
   const [previewSlotIdx, setPreviewSlotIdx] = useState<number | null>(null);
   const [watermarkSlotIdx, setWatermarkSlotIdx] = useState<number | null>(null);
   const [zipExporting, setZipExporting] = useState<boolean>(false);
+
+  // Multi-user & Realtime Collaboration state
+  const [userName, setUserName] = useState<string>(() => promptForUserNameIfNeeded());
+  const [locks, setLocks] = useState<Record<string, string>>({});
+  const [presenceUsers, setPresenceUsers] = useState<string[]>([]);
 
   const pageMultiUploadRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     ensureSiteReferencesSeeded();
   }, []);
+
+  // Join Document Room & listen for Socket.io Realtime Collaboration
+  useEffect(() => {
+    if (!documentId) return;
+    const name = getStoredUserName() || promptForUserNameIfNeeded();
+    setUserName(name);
+    joinDocumentRoom(documentId, name);
+
+    // Initial sync of full document & all its photos from server
+    syncDocumentAndPhotosFromServer(documentId).catch(console.error);
+
+    const s = getSocket();
+
+    const handleInitialLocks = (initial: Record<string, string>) => {
+      setLocks(initial || {});
+    };
+
+    const handleSlotLocked = ({ pageId, slotIndex, userName: lockedBy }: any) => {
+      setLocks((prev) => ({ ...prev, [`${pageId}:${slotIndex}`]: lockedBy }));
+    };
+
+    const handleSlotUnlocked = ({ pageId, slotIndex }: any) => {
+      setLocks((prev) => {
+        const next = { ...prev };
+        delete next[`${pageId}:${slotIndex}`];
+        return next;
+      });
+    };
+
+    const handleSlotUpdated = async ({ pageId, slotIndex, photoRecord, userName: author }: any) => {
+      console.log(`[Realtime] Received slot update for ${pageId}:${slotIndex} by ${author}`, photoRecord);
+      if (photoRecord?.id) {
+        await fetchPhotoFromServerAndCache(photoRecord.id, documentId, photoRecord);
+      }
+      await updateDocument(documentId, (curr) => ({
+        ...curr,
+        pages: curr.pages.map((p) =>
+          p.id === pageId
+            ? {
+                ...p,
+                slots: p.slots.map((s) =>
+                  s.slotIndex === slotIndex ? { ...s, photoId: photoRecord ? photoRecord.id : null } : s
+                ),
+              }
+            : p
+        ),
+      }));
+    };
+
+    const handleDocumentUpdated = ({ document: updatedDoc, userName: author }: any) => {
+      if (author === userName) return;
+      if (updatedDoc) {
+        db.documents.put(updatedDoc).catch(console.error);
+      }
+    };
+
+    const handlePresenceList = (users: string[]) => {
+      setPresenceUsers(users || []);
+    };
+
+    s.on('initial_locks', handleInitialLocks);
+    s.on('slot_locked', handleSlotLocked);
+    s.on('slot_unlocked', handleSlotUnlocked);
+    s.on('slot_updated', handleSlotUpdated);
+    s.on('document_updated', handleDocumentUpdated);
+    s.on('presence_list', handlePresenceList);
+
+    getNextcloudStatus()
+      .then((st) => setNextcloudConfigured(st.configured))
+      .catch(() => {});
+
+    return () => {
+      s.off('initial_locks', handleInitialLocks);
+      s.off('slot_locked', handleSlotLocked);
+      s.off('slot_unlocked', handleSlotUnlocked);
+      s.off('slot_updated', handleSlotUpdated);
+      s.off('document_updated', handleDocumentUpdated);
+      s.off('presence_list', handlePresenceList);
+      leaveDocumentRoom();
+    };
+  }, [documentId, userName]);
 
   useEffect(() => {
     setSwapSourceSlot(null);
@@ -285,6 +393,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         ),
       }));
 
+      // Multi-user Realtime Broadcast & Nextcloud Sync
+      uploadPhotoToServer({ record, pageId, slotIndex }).then((uploaded) => {
+        if (!uploaded) console.warn('[Sync] Foto gagal upload ke server.');
+      }).catch((err) => console.warn('[Sync] Foto gagal upload ke server:', err));
+      emitUnlockSlot(doc.id, pageId, slotIndex);
+
       if (oldPhotoId) {
         await deletePhotoIfUnreferenced(doc.id, oldPhotoId);
       }
@@ -358,6 +472,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           ),
         }));
 
+        // Multi-user Realtime Broadcast & Nextcloud Sync
+        uploadPhotoToServer({ record, pageId, slotIndex: slotIdx }).then((uploaded) => {
+          if (!uploaded) console.warn('[Sync] Foto gagal upload ke server.');
+        }).catch((err) => console.warn('[Sync] Foto gagal upload ke server:', err));
+
         if (oldPhotoId) {
           await deletePhotoIfUnreferenced(doc.id, oldPhotoId);
         }
@@ -429,6 +548,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       ),
     }));
     await deletePhotoIfUnreferenced(doc.id, oldPhotoId);
+
+    // Notify server & other clients
+    const base = window.location.port === '5173' ? `http://${window.location.hostname}:3001` : '';
+    fetch(`${base}/api/photos/${oldPhotoId}`, { method: 'DELETE' }).catch(console.error);
   };
 
   const handleExportZip = async () => {
@@ -450,8 +573,25 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
   const openGuidedCameraForPage = () => {
     if (!activePage) return;
-    const firstEmpty = activePage.slots.find((s) => !s.photoId);
-    setCameraModalSlot(firstEmpty ? firstEmpty.slotIndex : 0);
+    const firstEmpty = activePage.slots.find(
+      (s) => !s.photoId && !locks[`${activePage.id}:${s.slotIndex}`]
+    );
+    const targetIdx = firstEmpty ? firstEmpty.slotIndex : 0;
+    handleOpenGuidedCameraAtSlot(targetIdx);
+  };
+
+  const handleOpenGuidedCameraAtSlot = (idx: number) => {
+    if (activePage) {
+      emitLockSlot(doc.id, activePage.id, idx, userName);
+    }
+    setCameraModalSlot(idx);
+  };
+
+  const handleCloseGuidedCamera = () => {
+    if (activePage && cameraModalSlot !== null) {
+      emitUnlockSlot(doc.id, activePage.id, cameraModalSlot);
+    }
+    setCameraModalSlot(null);
   };
 
   const previewSlot =
@@ -512,6 +652,49 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* User Display Name */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextName = window.prompt('Ubah nama panggilan Anda (untuk kolaborasi tim):', userName);
+                if (nextName && nextName.trim()) {
+                  setStoredUserName(nextName.trim());
+                  setUserName(nextName.trim());
+                }
+              }}
+              title="Nama Anda (Klik untuk ubah)"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <User className="w-3.5 h-3.5 text-blue-600" />
+              <span className="truncate max-w-[70px] sm:max-w-[120px]">{userName}</span>
+            </button>
+
+            {/* Online Presence Pill */}
+            {presenceUsers.length > 1 && (
+              <div
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-2.5 py-2 text-xs font-semibold text-emerald-800"
+                title={`Teknisi aktif di task ini: ${presenceUsers.join(', ')}`}
+              >
+                <Users className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{presenceUsers.length} Online</span>
+              </div>
+            )}
+
+            {/* Nextcloud Button */}
+            <button
+              type="button"
+              onClick={() => setShowNextcloudModal(true)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-semibold transition ${
+                nextcloudConfigured
+                  ? 'border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100'
+                  : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+              }`}
+              title="Status Integrasi Nextcloud"
+            >
+              <Cloud className="w-3.5 h-3.5 text-sky-600" />
+              <span className="hidden md:inline">Nextcloud</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowHelpModal(true)}
@@ -1046,7 +1229,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       isSwapSource={swapSourceSlot === slot.slotIndex}
                       isSwapModeActive={swapSourceSlot !== null}
                       busy={isBusy}
-                      onOpenCameraAtSlot={(idx) => setCameraModalSlot(idx)}
+                      lockedBy={locks[`${activePage.id}:${slot.slotIndex}`]}
+                      onOpenCameraAtSlot={handleOpenGuidedCameraAtSlot}
                       onUploadFilesAtSlot={(idx, files) =>
                         handleUploadFilesToPage(idx, files)
                       }
@@ -1140,13 +1324,17 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         <HelpGuideModal onClose={() => setShowHelpModal(false)} />
       )}
 
+      {showNextcloudModal && (
+        <NextcloudModal onClose={() => setShowNextcloudModal(false)} />
+      )}
+
       {cameraModalSlot !== null && activePage && (
         <GuidedCameraModal
           page={activePage}
           header={doc.header}
           initialSlotIndex={cameraModalSlot}
           onCaptureSlot={handleCameraCapture}
-          onClose={() => setCameraModalSlot(null)}
+          onClose={handleCloseGuidedCamera}
         />
       )}
 

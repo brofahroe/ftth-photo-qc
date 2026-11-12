@@ -39,6 +39,43 @@ Browser HP mewajibkan koneksi **HTTPS** untuk mengizinkan akses **Kamera** dan *
 
 ---
 
+## Mode Kolaborasi Multi-User & Sinkronisasi Nextcloud
+
+Aplikasi ini mendukung kolaborasi langsung di lapangan antar beberapa teknisi yang mengerjakan task yang sama secara bersamaan:
+
+- **Database Metadata**: SQLite lokal server (`data/photoqc.db`) dengan mode WAL untuk performa tulis tinggi.
+- **Realtime Presence & Soft Lock**: Menggunakan **Socket.io** agar saat Teknisi A membuka slot kamera tertentu, slot tersebut otomatis ditandai `Sedang difoto oleh [Nama]` di layar teknisi lain sehingga tidak bertabrakan.
+- **Penyimpanan Nextcloud Otomatis**: Foto dan laporan PDF otomatis diunggah ke Nextcloud via WebDAV secara asinkron di latar belakang.
+- **Offline-First Resilience**: Saat koneksi 4G di lapangan terputus, pengambilan foto tetap berjalan mulus menggunakan IndexedDB lokal HP dan akan otomatis disinkronkan ke server & Nextcloud begitu sinyal kembali.
+
+### Cara Menjalankan Server Kolaborasi:
+
+1. Salin `.env.example` menjadi `.env` lalu sesuaikan konfigurasi Nextcloud Anda:
+   ```env
+   PORT=3001
+   CORS_ORIGIN=*
+
+   # Konfigurasi Nextcloud WebDAV
+   NEXTCLOUD_URL=https://cloud.perusahaan.com
+   NEXTCLOUD_USERNAME=admin
+   NEXTCLOUD_PASSWORD=app_token_atau_password_anda
+   NEXTCLOUD_BASE_DIR=/PhotoQC
+   ```
+
+2. Jalankan server:
+   ```bash
+   npm run server
+   ```
+   Server akan berjalan di `http://localhost:3001` (sekaligus menyajikan frontend dan WebSocket).
+
+3. Untuk development frontend mandiri dengan Vite:
+   ```bash
+   npm run dev
+   ```
+   Vite akan otomatis mem-proxy request `/api` dan `/socket.io` ke server backend di port 3001.
+
+---
+
 ## Fitur Utama
 1. **Mode Kamera Beruntun di HP**: Sekali buka kamera langsung memandu jepret urut dari Kotak #1 sampai selesai beserta indikator akurasi GPS live.
 2. **Watermark Non-Destruktif**: Watermark otomatis untuk kamera dan upload nonaktif secara default dan dapat diaktifkan manual. Tersedia pembaca EXIF serta fitur edit manual jam, koordinat, dan alamat untuk 1 foto maupun seluruh foto se-halaman.

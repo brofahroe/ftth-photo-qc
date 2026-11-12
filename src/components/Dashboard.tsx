@@ -19,6 +19,9 @@ import {
   Trash2,
   Wifi,
   WifiOff,
+  Cloud,
+  User,
+  RefreshCw,
 } from 'lucide-react';
 import { DEFAULT_MORA_LOGO, DEFAULT_ZTE_LOGO } from '../assets/defaultLogos';
 import {
@@ -28,11 +31,22 @@ import {
   exportDocumentToZip,
   importDocumentFromZip,
 } from '../db/database';
+import {
+  syncDocumentsFromServer,
+  deleteDocumentOnServer,
+  getNextcloudStatus,
+} from '../services/apiSync';
+import {
+  getStoredUserName,
+  promptForUserNameIfNeeded,
+  setStoredUserName,
+} from '../services/userService';
 import { DOCUMENT_TYPES, generateId } from '../presets/documentPresets';
 import { DocumentType, QcDocument } from '../types';
 import { ExportPdfModal } from './ExportPdfModal';
 import { HelpGuideModal } from './HelpGuideModal';
 import { NewDocumentModal } from './NewDocumentModal';
+import { NextcloudModal } from './NextcloudModal';
 import { SiteReferenceModal } from './SiteReferenceModal';
 import { VendorSettingsModal } from './VendorSettingsModal';
 
@@ -61,12 +75,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
   const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
   const [exportTargetDoc, setExportTargetDoc] = useState<QcDocument | null>(null);
   const [importingZip, setImportingZip] = useState<boolean>(false);
+  const [showNextcloudModal, setShowNextcloudModal] = useState<boolean>(false);
+  const [nextcloudConfigured, setNextcloudConfigured] = useState<boolean>(false);
+  const [userName, setUserName] = useState<string>(() => getStoredUserName() || 'Teknisi Lapangan');
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   const zipInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleSyncWithServer = async () => {
+    setIsSyncing(true);
+    try {
+      await syncDocumentsFromServer();
+      const st = await getNextcloudStatus();
+      setNextcloudConfigured(st.configured);
+    } catch (e) {
+      console.warn('[Sync Error]', e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    handleSyncWithServer();
+  }, []);
 
   useEffect(() => {
     const goOnline = () => setIsOnline(true);
@@ -140,12 +175,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
   const handleDeleteDoc = async (doc: QcDocument) => {
     if (
       !confirm(
-        `Hapus dokumen "${doc.title}" beserta seluruh foto di dalamnya dari perangkat ini?`
+        `Hapus dokumen "${doc.title}" beserta seluruh foto di dalamnya?`
       )
     ) {
       return;
     }
     await deleteDocumentCascade(doc.id);
+    deleteDocumentOnServer(doc.id).catch(console.error);
   };
 
   const filteredDocs = docs.filter((d) => {
@@ -232,6 +268,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Display Name Pill */}
+              <button
+                type="button"
+                onClick={() => {
+                  const n = prompt('Ubah nama panggilan Anda (untuk kolaborasi lapangan):', userName);
+                  if (n && n.trim()) {
+                    setStoredUserName(n.trim());
+                    setUserName(n.trim());
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+                title="Nama Anda (Klik untuk ubah)"
+              >
+                <User className="w-4 h-4 text-sky-300" />
+                <span className="truncate max-w-[90px] sm:max-w-[140px]">{userName}</span>
+              </button>
+
+              {/* Sync with Server Button */}
+              <button
+                type="button"
+                onClick={handleSyncWithServer}
+                disabled={isSyncing}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 transition"
+                title="Sinkronkan dengan Server SQLite"
+              >
+                <RefreshCw className={`w-4 h-4 text-emerald-300 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Sync</span>
+              </button>
+
+              {/* Nextcloud Integration Status */}
+              <button
+                type="button"
+                onClick={() => setShowNextcloudModal(true)}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
+                  nextcloudConfigured
+                    ? 'bg-sky-500/20 border-sky-400/30 text-sky-200 hover:bg-sky-500/30'
+                    : 'bg-amber-500/20 border-amber-400/30 text-amber-200 hover:bg-amber-500/30'
+                }`}
+                title="Status Sinkronisasi Nextcloud"
+              >
+                <Cloud className="w-4 h-4 text-sky-300" />
+                <span>Nextcloud</span>
+              </button>
+
               {installPrompt && (
                 <button
                   type="button"
@@ -611,6 +691,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
           onUpdateTitle={() => {}}
           onClose={() => setExportTargetDoc(null)}
         />
+      )}
+
+      {showNextcloudModal && (
+        <NextcloudModal onClose={() => setShowNextcloudModal(false)} />
       )}
     </div>
   );

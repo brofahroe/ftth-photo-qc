@@ -24,6 +24,7 @@ import {
   db,
   ensureSiteReferencesSeeded,
 } from '../db/database';
+import { pushDocumentToServer } from '../services/apiSync';
 import {
   DocumentPage,
   DocumentType,
@@ -215,6 +216,12 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
         },
         initialPages,
       });
+
+      // Sync to SQLite Server & Nextcloud workspace
+      pushDocumentToServer(created).catch((err) =>
+        console.warn('[Sync] Failed to push new document to server:', err)
+      );
+
       onCreated(created);
     } finally {
       setSubmitting(false);

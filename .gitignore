@@ -3,3 +3,8 @@ dist
 dist-ssr
 *.local
 .DS_Store
+
+# Local storage and server data
+data/
+uploads/
+.env

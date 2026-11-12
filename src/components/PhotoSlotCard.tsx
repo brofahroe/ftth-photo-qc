@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   Camera,
   Loader2,
+  Lock,
   MapPin,
   Maximize2,
   RotateCw,
@@ -19,6 +20,7 @@ interface PhotoSlotCardProps {
   isSwapSource: boolean;
   isSwapModeActive: boolean;
   busy?: boolean;
+  lockedBy?: string;
   onOpenCameraAtSlot: (slotIndex: number) => void;
   onUploadFilesAtSlot: (slotIndex: number, files: FileList) => void;
   onPreview: (slotIndex: number) => void;
@@ -47,6 +49,7 @@ export const PhotoSlotCard: React.FC<PhotoSlotCardProps> = ({
   onSwapClick,
   onDragDropSwap,
   onChangeDescription,
+  lockedBy,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [thumbUrl, setThumbUrl] = useState<string>('');
@@ -98,13 +101,15 @@ export const PhotoSlotCard: React.FC<PhotoSlotCardProps> = ({
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
       className={`group rounded-xl border-2 bg-white overflow-hidden transition-all shadow-xs ${
-        isSwapSource
-          ? 'border-blue-600 ring-4 ring-blue-500/25'
-          : dragOver
-            ? 'border-indigo-500 bg-indigo-50/30 ring-2 ring-indigo-500/20'
-            : isSwapModeActive
-              ? 'border-amber-400 cursor-pointer hover:border-amber-500'
-              : 'border-slate-800/85'
+        lockedBy
+          ? 'border-amber-500 ring-4 ring-amber-400/40 bg-amber-50/20'
+          : isSwapSource
+            ? 'border-blue-600 ring-4 ring-blue-500/25'
+            : dragOver
+              ? 'border-indigo-500 bg-indigo-50/30 ring-2 ring-indigo-500/20'
+              : isSwapModeActive
+                ? 'border-amber-400 cursor-pointer hover:border-amber-500'
+                : 'border-slate-800/85'
       }`}
     >
       {/* Photo Box Area */}
@@ -120,6 +125,14 @@ export const PhotoSlotCard: React.FC<PhotoSlotCardProps> = ({
         <span className="absolute top-2 left-2 z-10 rounded-md bg-slate-900/75 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-xs">
           #{slot.slotIndex + 1}
         </span>
+
+        {/* Realtime Soft Lock Badge */}
+        {lockedBy && (
+          <div className="absolute top-2 left-11 z-20 flex items-center gap-1.5 rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white shadow-md animate-pulse">
+            <Lock className="w-3.5 h-3.5" />
+            <span className="truncate max-w-[130px]">Oleh {lockedBy}</span>
+          </div>
+        )}
 
         {busy ? (
           <div className="flex flex-col items-center gap-2 text-slate-600">
@@ -269,16 +282,33 @@ export const PhotoSlotCard: React.FC<PhotoSlotCardProps> = ({
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <button
                     type="button"
-                    onClick={() => onOpenCameraAtSlot(slot.slotIndex)}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 active:scale-95 transition"
+                    onClick={() => {
+                      if (lockedBy) {
+                        alert(`Kotak #${slot.slotIndex + 1} sedang difoto oleh ${lockedBy}. Silakan pilih kotak lain.`);
+                        return;
+                      }
+                      onOpenCameraAtSlot(slot.slotIndex);
+                    }}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition ${
+                      lockedBy
+                        ? 'bg-amber-600 opacity-75 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                    }`}
                   >
-                    <Camera className="w-4 h-4" />
-                    Kamera
+                    {lockedBy ? <Lock className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
+                    {lockedBy ? `Oleh ${lockedBy}` : 'Kamera'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition"
+                    onClick={() => {
+                      if (lockedBy) {
+                        alert(`Kotak #${slot.slotIndex + 1} sedang difoto oleh ${lockedBy}. Silakan pilih kotak lain.`);
+                        return;
+                      }
+                      fileInputRef.current?.click();
+                    }}
+                    disabled={Boolean(lockedBy)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Upload className="w-4 h-4" />
                     Upload

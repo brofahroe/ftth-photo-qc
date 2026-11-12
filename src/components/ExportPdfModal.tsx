@@ -21,6 +21,7 @@ import { getPageDisplayName } from '../presets/documentPresets';
 import { generateDocumentPdf, PdfExportProgress } from '../services/pdfGenerator';
 import { PDF_QUALITY_CONFIG } from '../services/watermark';
 import { PdfQualityPreset, PhotoRecord, QcDocument } from '../types';
+import { uploadPdfReportToNextcloud } from '../services/apiSync';
 
 interface ExportPdfModalProps {
   doc: QcDocument;
@@ -117,6 +118,11 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
       }
       const pdfUrl = URL.createObjectURL(res.blob);
       setGeneratedPdf({ blob: res.blob, filename: res.filename, url: pdfUrl });
+
+      // Automatically send copy to Nextcloud
+      uploadPdfReportToNextcloud(doc.id, res.blob, res.filename).catch((e) =>
+        console.warn('[Nextcloud] Upload PDF error:', e)
+      );
 
       if (autoDownload) {
         triggerDownload(res.blob, res.filename);
