@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: ftth-photo-qc-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run server
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: NEXTCLOUD_URL
+        value: https://drive.gciconnect.my.id
+      - key: NEXTCLOUD_USER
+        value: gcibot
+      - key: NEXTCLOUD_PASSWORD
+        sync: false
+      - key: NEXTCLOUD_DIR
+        value: ftth-photo-qc
+      - key: NEXTCLOUD_BASE_DIR
+        value: /ftth-photo-qc
