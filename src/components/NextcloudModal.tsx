@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Cloud, CheckCircle2, AlertCircle, RefreshCw, X, FolderCheck, HardDrive } from 'lucide-react';
 import { getNextcloudStatus } from '../services/apiSync';
+import { getApiBaseUrl } from '../services/serverUrl';
 
 interface NextcloudModalProps {
   onClose: () => void;
@@ -11,6 +12,7 @@ export const NextcloudModal: React.FC<NextcloudModalProps> = ({ onClose }) => {
   const [testing, setTesting] = useState<boolean>(false);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [status, setStatus] = useState<{
     configured: boolean;
     serverUrl: string | null;
@@ -21,9 +23,13 @@ export const NextcloudModal: React.FC<NextcloudModalProps> = ({ onClose }) => {
 
   const loadStatus = async () => {
     setLoading(true);
+    setStatusError(null);
     try {
       const data = await getNextcloudStatus();
       setStatus(data);
+    } catch (err) {
+      setStatus(null);
+      setStatusError(err instanceof Error ? err.message : 'Tidak dapat menghubungi server aplikasi.');
     } finally {
       setLoading(false);
     }
@@ -37,8 +43,7 @@ export const NextcloudModal: React.FC<NextcloudModalProps> = ({ onClose }) => {
     setTesting(true);
     setTestResult(null);
     try {
-      const base = window.location.port === '5173' ? 'http://localhost:3001' : '';
-      const res = await fetch(`${base}/api/nextcloud/test`, { method: 'POST' });
+      const res = await fetch(`${getApiBaseUrl()}/api/nextcloud/test`, { method: 'POST' });
       const data = await res.json();
       setTestResult(data);
       await loadStatus();
@@ -52,8 +57,7 @@ export const NextcloudModal: React.FC<NextcloudModalProps> = ({ onClose }) => {
   const handleSyncNow = async () => {
     setSyncing(true);
     try {
-      const base = window.location.port === '5173' ? 'http://localhost:3001' : '';
-      await fetch(`${base}/api/nextcloud/sync-now`, { method: 'POST' });
+      await fetch(`${getApiBaseUrl()}/api/nextcloud/sync-now`, { method: 'POST' });
       await loadStatus();
     } finally {
       setSyncing(false);
@@ -82,6 +86,14 @@ export const NextcloudModal: React.FC<NextcloudModalProps> = ({ onClose }) => {
         <div className="p-6 overflow-y-auto space-y-5">
           {loading ? (
             <div className="py-8 text-center text-sm text-slate-500">Memeriksa status Nextcloud...</div>
+          ) : statusError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-900">
+              <h4 className="text-sm font-bold">Server Photo QC tidak dapat dijangkau</h4>
+              <p className="mt-1 text-xs">
+                Status Nextcloud belum bisa diperiksa ({statusError}). Pastikan backend berjalan dan
+                VITE_API_URL di Vercel mengarah ke URL backend, lalu deploy ulang frontend.
+              </p>
+            </div>
           ) : (
             <>
               {/* Status Banner */}

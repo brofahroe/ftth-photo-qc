@@ -65,6 +65,7 @@ import {
   syncDocumentAndPhotosFromServer,
   getNextcloudStatus,
 } from '../services/apiSync';
+import { getApiBaseUrl } from '../services/serverUrl';
 import { getStoredUserName, promptForUserNameIfNeeded, setStoredUserName } from '../services/userService';
 import {
   DocumentHeader,
@@ -550,8 +551,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     await deletePhotoIfUnreferenced(doc.id, oldPhotoId);
 
     // Notify server & other clients
-    const base = window.location.port === '5173' ? `http://${window.location.hostname}:3001` : '';
-    fetch(`${base}/api/photos/${oldPhotoId}`, { method: 'DELETE' }).catch(console.error);
+    fetch(`${getApiBaseUrl()}/api/photos/${oldPhotoId}`, { method: 'DELETE' }).catch(console.error);
   };
 
   const handleExportZip = async () => {

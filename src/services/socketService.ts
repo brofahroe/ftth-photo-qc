@@ -1,15 +1,11 @@
 import { io, Socket } from 'socket.io-client';
+import { getSocketBaseUrl } from './serverUrl';
 
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
-    // Connect to same origin in production, or server port 3001 in development
-    const socketUrl =
-      window.location.port === '5173'
-        ? `http://${window.location.hostname}:3001`
-        : window.location.origin;
-    socket = io(socketUrl, {
+    socket = io(getSocketBaseUrl(), {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,

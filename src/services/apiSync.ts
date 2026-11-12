@@ -1,16 +1,11 @@
 import { db } from '../db/database';
 import { PhotoRecord, QcDocument } from '../types';
 import { getStoredUserName } from './userService';
-
-const getApiBase = () => {
-  return window.location.port === '5173'
-    ? `http://${window.location.hostname}:3001`
-    : '';
-};
+import { getApiBaseUrl } from './serverUrl';
 
 export async function fetchServerDocuments(): Promise<QcDocument[]> {
   try {
-    const res = await fetch(`${getApiBase()}/api/documents`);
+    const res = await fetch(`${getApiBaseUrl()}/api/documents`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const docs = await res.json();
     return docs;
@@ -38,7 +33,7 @@ export async function syncDocumentsFromServer(): Promise<void> {
 
 export async function pushDocumentToServer(doc: QcDocument): Promise<void> {
   try {
-    await fetch(`${getApiBase()}/api/documents`, {
+    await fetch(`${getApiBaseUrl()}/api/documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(doc),
@@ -50,7 +45,7 @@ export async function pushDocumentToServer(doc: QcDocument): Promise<void> {
 
 export async function updateDocumentOnServer(docId: string, patch: Partial<QcDocument>): Promise<void> {
   try {
-    await fetch(`${getApiBase()}/api/documents/${docId}`, {
+    await fetch(`${getApiBaseUrl()}/api/documents/${docId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -62,7 +57,7 @@ export async function updateDocumentOnServer(docId: string, patch: Partial<QcDoc
 
 export async function deleteDocumentOnServer(docId: string): Promise<void> {
   try {
-    await fetch(`${getApiBase()}/api/documents/${docId}`, {
+    await fetch(`${getApiBaseUrl()}/api/documents/${docId}`, {
       method: 'DELETE',
     });
   } catch (err) {
@@ -93,7 +88,7 @@ export async function uploadPhotoToServer(params: {
     formData.append('renderedImage', params.record.renderedBlob, `rendered_${params.record.id}.jpg`);
     formData.append('rawImage', params.record.rawBlob, `raw_${params.record.id}.jpg`);
 
-    const res = await fetch(`${getApiBase()}/api/photos/upload`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/photos/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -119,7 +114,7 @@ export async function fetchPhotoFromServerAndCache(
     const existing = await db.photos.get(photoId);
     if (existing && existing.documentId === documentId) return existing;
 
-    const base = getApiBase();
+    const base = getApiBaseUrl();
     const renderedRes = await fetch(`${base}/api/photos/${photoId}/rendered`);
     if (!renderedRes.ok) return null;
     const renderedBlob = await renderedRes.blob();
@@ -160,7 +155,7 @@ export async function fetchPhotoFromServerAndCache(
 
 export async function syncDocumentAndPhotosFromServer(documentId: string): Promise<void> {
   try {
-    const base = getApiBase();
+    const base = getApiBaseUrl();
     const res = await fetch(`${base}/api/documents/${documentId}`);
     if (!res.ok) return;
     const docData = await res.json();
@@ -201,7 +196,7 @@ export async function uploadPdfReportToNextcloud(documentId: string, pdfBlob: Bl
     formData.append('documentId', documentId);
     formData.append('pdfFile', pdfBlob, fileName);
 
-    const res = await fetch(`${getApiBase()}/api/nextcloud/upload-pdf`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/nextcloud/upload-pdf`, {
       method: 'POST',
       body: formData,
     });
@@ -221,16 +216,11 @@ export async function getNextcloudStatus(): Promise<{
   queue: { pending: number; synced: number; failed: number };
 }> {
   try {
-    const res = await fetch(`${getApiBase()}/api/nextcloud/status`);
+    const res = await fetch(`${getApiBaseUrl()}/api/nextcloud/status`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
-    return {
-      configured: false,
-      serverUrl: null,
-      username: null,
-      baseDir: '/PhotoQC',
-      queue: { pending: 0, synced: 0, failed: 0 },
-    };
+    console.error('[Nextcloud] Failed to fetch status from Photo QC server:', err);
+    throw err;
   }
 }
