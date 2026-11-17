@@ -47,6 +47,9 @@ Aplikasi ini mendukung kolaborasi langsung di lapangan antar beberapa teknisi ya
 - **Realtime Presence & Soft Lock**: Menggunakan **Socket.io** agar saat Teknisi A membuka slot kamera tertentu, slot tersebut otomatis ditandai `Sedang difoto oleh [Nama]` di layar teknisi lain sehingga tidak bertabrakan.
 - **Penyimpanan Nextcloud Otomatis**: Foto dan laporan PDF otomatis diunggah ke Nextcloud via WebDAV secara asinkron di latar belakang.
 - **Offline-First Resilience**: Saat koneksi 4G di lapangan terputus, pengambilan foto tetap berjalan mulus menggunakan IndexedDB lokal HP dan akan otomatis disinkronkan ke server & Nextcloud begitu sinyal kembali.
+- **Antrean Sinkronisasi Lokal**: Dokumen dan foto yang dibuat atau diimpor saat offline disimpan di antrean browser dan dikirim ulang saat koneksi pulih. Tombol **Sync** menjalankan sinkronisasi dua arah dengan server Photo QC; konflik edit di perangkat berbeda meminta pilihan versi secara eksplisit.
+
+Setiap browser/perangkat memiliki IndexedDB sendiri. Pastikan antrean sync kosong sebelum menghapus data situs atau berpindah browser; data lokal yang belum terkirim belum menjadi salinan Nextcloud.
 
 ### Cara Menjalankan Server Kolaborasi:
 
@@ -78,7 +81,7 @@ Aplikasi ini mendukung kolaborasi langsung di lapangan antar beberapa teknisi ya
 
 `vercel.json` hanya men-deploy frontend statis. Backend Photo QC (Express, SQLite, upload file, Socket.IO, dan worker Nextcloud) harus dijalankan pada host Node.js terpisah dengan penyimpanan persisten.
 
-1. Deploy repository di host Node.js dan jalankan `npm run server` (Node.js 22+). Pasang persistent disk pada `/app/storage`; database SQLite, foto, dan PDF akan disimpan di sana.
+1. Deploy repository di host Node.js dan jalankan `npm run server` (Node.js 22+). Pasang persistent disk pada `/app/storage` dan set `PHOTOQC_STORAGE_DIR=/app/storage`; database SQLite, foto, dan PDF akan disimpan di sana. Jangan mengandalkan filesystem ephemeral/free-tier untuk backend produksi karena restart atau deploy dapat menghapus antrean dan file yang belum tersinkron.
 2. Atur `NEXTCLOUD_URL`, `NEXTCLOUD_USERNAME`, dan `NEXTCLOUD_PASSWORD` pada environment backend tersebut, lalu restart/redeploy backend. Untuk Docker, direktori storage dapat diubah lewat `PHOTOQC_STORAGE_DIR`.
 3. Di Vercel, atur `VITE_API_URL` ke URL publik backend, misalnya `https://photo-qc-api.example.com` (tanpa `/` di akhir), untuk environment Production.
 4. Redeploy frontend Vercel agar `VITE_API_URL` masuk ke build. Jangan gunakan prefix `VITE_` untuk kredensial Nextcloud karena variabel `VITE_*` tersedia di browser.

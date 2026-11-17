@@ -126,9 +126,29 @@ documentsRouter.post('/', (req: Request, res: Response) => {
     const pagesJson = JSON.stringify(pages || []);
     const watermarkDefault = defaultWatermarkOnUpload ? 1 : 0;
     const created = createdAt || now;
-    const updated = updatedAt || now;
+    const requestedUpdated = updatedAt || now;
 
     const existing = db.prepare('SELECT id, updated_at FROM documents WHERE id = ?').get(docId) as any;
+    const hasExpectedVersion = Object.prototype.hasOwnProperty.call(req.body, 'expectedUpdatedAt');
+    if (
+      existing &&
+      hasExpectedVersion &&
+      req.body.expectedUpdatedAt !== existing.updated_at
+    ) {
+      const current = db.prepare(`
+        SELECT d.*, (SELECT COUNT(*) FROM photos p WHERE p.document_id = d.id) as photo_count
+        FROM documents d WHERE d.id = ?
+      `).get(docId) as any;
+      return res.status(409).json({
+        error: 'Dokumen berubah di server sejak sinkronisasi terakhir.',
+        document: formatDocumentRow(current),
+      });
+    }
+
+    const updated =
+      existing && hasExpectedVersion
+        ? Math.max(Date.now(), existing.updated_at + 1, requestedUpdated)
+        : requestedUpdated;
 
     db.prepare(`
       INSERT INTO documents (

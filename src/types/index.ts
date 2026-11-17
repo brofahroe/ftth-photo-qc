@@ -138,3 +138,18 @@ export interface SyncOutboxItem {
   lastError?: string;
   updatedAt: number;
 }
+
+export interface SyncBaseline {
+  documentId: string;
+  serverUpdatedAt: number;
+  contentSignature: string;
+}
+
+export interface SyncConflict {
+  documentId: string;
+  localDocument: QcDocument;
+  serverDocument: QcDocument;
+  detectedAt: number;
+  resolvedAt?: number;
+  resolution?: 'local' | 'server';
+}

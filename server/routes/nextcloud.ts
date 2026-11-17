@@ -70,8 +70,42 @@ nextcloudRouter.post('/test', async (req: Request, res: Response) => {
 // POST manually trigger sync queue
 nextcloudRouter.post('/sync-now', async (req: Request, res: Response) => {
   try {
-    processNextcloudQueue().catch((err) => console.error('[Manual Sync Error]', err));
-    res.json({ success: true, message: 'Sinkronisasi Nextcloud dimulai di latar belakang.' });
+    const config = getNextcloudConfig();
+    if (!config.url || !config.username || !config.password) {
+      return res.status(503).json({
+        success: false,
+        message: 'Konfigurasi Nextcloud belum lengkap di backend.',
+      });
+    }
+
+    await processNextcloudQueue();
+    const pendingPhotos = (db.prepare(`
+      SELECT COUNT(*) as count FROM photos WHERE nextcloud_status IN ('pending', 'uploading')
+    `).get() as any)?.count || 0;
+    const pendingFolders = (db.prepare(`
+      SELECT COUNT(*) as count FROM documents WHERE nextcloud_folder_status IN ('pending', 'uploading')
+    `).get() as any)?.count || 0;
+    const pendingDeletions = (db.prepare(`
+      SELECT COUNT(*) as count FROM nextcloud_deletions WHERE attempts < 10
+    `).get() as any)?.count || 0;
+    const failedPhotos = (db.prepare(`
+      SELECT COUNT(*) as count FROM photos WHERE nextcloud_status = 'failed'
+    `).get() as any)?.count || 0;
+    const failedFolders = (db.prepare(`
+      SELECT COUNT(*) as count FROM documents WHERE nextcloud_folder_status = 'failed'
+    `).get() as any)?.count || 0;
+    const pending = pendingPhotos + pendingFolders + pendingDeletions;
+    const failed = failedPhotos + failedFolders;
+
+    res.json({
+      success: pending === 0 && failed === 0,
+      pending,
+      failed,
+      message:
+        pending === 0 && failed === 0
+          ? 'Semua antrean Nextcloud sudah selesai.'
+          : `Sinkronisasi belum tuntas: ${pending} masih antre, ${failed} gagal dan perlu diperiksa.`,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

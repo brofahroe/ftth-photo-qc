@@ -2,6 +2,7 @@ import { db } from '../db/database';
 import { PhotoRecord, QcDocument } from '../types';
 import { getStoredUserName } from './userService';
 import { getApiBaseUrl } from './serverUrl';
+import { getDocumentContentSignature } from './syncConflict';
 
 async function fetchWithTimeout(
   input: string,
@@ -43,18 +44,45 @@ export async function fetchServerDeletedDocIds(): Promise<string[]> {
   }
 }
 
-export async function pushDocumentToServer(doc: QcDocument): Promise<boolean> {
+export interface PushDocumentResult {
+  ok: boolean;
+  document?: QcDocument;
+  conflict?: QcDocument;
+  error?: string;
+}
+
+export interface ServerDocumentSnapshot extends QcDocument {
+  photos: Record<string, { id: string; updatedAt: number }>;
+}
+
+export async function pushDocumentToServer(doc: QcDocument): Promise<PushDocumentResult> {
   try {
     const userName = getStoredUserName() || 'Teknisi Lapangan';
+    const baseline = await db.syncBaselines.get(doc.id);
     const res = await fetchWithTimeout(`${getApiBaseUrl()}/api/documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...doc, updatedBy: userName }),
+      body: JSON.stringify({
+        ...doc,
+        updatedBy: userName,
+        expectedUpdatedAt: baseline?.serverUpdatedAt ?? null,
+      }),
     });
-    return res.ok;
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data?.document?.id === doc.id) {
+      return { ok: false, conflict: data.document };
+    }
+    if (!res.ok) {
+      return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    }
+    const serverDocument = data?.document || data;
+    if (serverDocument?.id !== doc.id) {
+      return { ok: false, error: 'Respons server tidak berisi dokumen yang tersimpan.' };
+    }
+    return { ok: true, document: serverDocument as QcDocument };
   } catch (err) {
     console.warn('[Sync] Failed to push document to server:', err);
-    return false;
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -71,7 +99,7 @@ export async function updateDocumentOnServer(
       body: JSON.stringify({ ...patch, updatedBy: userName }),
     });
     if (res.status === 404 && fullDocFallback) {
-      return await pushDocumentToServer(fullDocFallback);
+      return (await pushDocumentToServer(fullDocFallback)).ok;
     }
     return res.ok;
   } catch (err) {
@@ -104,11 +132,16 @@ export async function deletePhotoOnServer(photoId: string): Promise<boolean> {
   }
 }
 
+export interface PhotoUploadResult {
+  ok: boolean;
+  error?: string;
+}
+
 export async function uploadPhotoToServer(params: {
   record: PhotoRecord;
   pageId?: string;
   slotIndex?: number;
-}): Promise<boolean> {
+}): Promise<PhotoUploadResult> {
   try {
     const userName = getStoredUserName() || 'Teknisi Lapangan';
     const formData = new FormData();
@@ -137,14 +170,16 @@ export async function uploadPhotoToServer(params: {
     );
 
     if (!res.ok) {
-      console.warn(`[Sync] Upload photo failed with status ${res.status}`);
-      return false;
+      const data = await res.json().catch(() => ({}));
+      const error = data?.error || `HTTP ${res.status}`;
+      console.warn(`[Sync] Upload photo failed: ${error}`);
+      return { ok: false, error };
     }
 
-    return true;
+    return { ok: true };
   } catch (err) {
     console.warn('[Sync] Error uploading photo to server:', err);
-    return false;
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -210,20 +245,31 @@ export async function fetchPhotoFromServerAndCache(
   }
 }
 
+export async function fetchServerDocumentSnapshot(
+  documentId: string
+): Promise<ServerDocumentSnapshot | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `${getApiBaseUrl()}/api/documents/${documentId}`,
+      { cache: 'no-store' }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('[Sync] Failed to fetch server document details:', err);
+    return null;
+  }
+}
+
 export async function syncDocumentAndPhotosFromServer(documentId: string): Promise<void> {
   try {
-    const base = getApiBaseUrl();
-    const res = await fetchWithTimeout(`${base}/api/documents/${documentId}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return;
-    const docData = await res.json();
+    const docData = await fetchServerDocumentSnapshot(documentId);
+    if (!docData) return;
 
-    // 1. Update local document if server is newer or equal
+    // 1. Only seed a missing document here; the sync engine resolves updates safely.
     const localDoc = await db.documents.get(documentId);
-    const pendingOutbox = await db.syncOutbox.get(`doc_upsert:${documentId}`);
-    if (!pendingOutbox && (!localDoc || docData.updatedAt >= localDoc.updatedAt)) {
-      await db.documents.put({
+    if (!localDoc) {
+      const serverDocument: QcDocument = {
         id: docData.id,
         title: docData.title,
         docType: docData.docType,
@@ -232,6 +278,12 @@ export async function syncDocumentAndPhotosFromServer(documentId: string): Promi
         defaultWatermarkOnUpload: docData.defaultWatermarkOnUpload,
         createdAt: docData.createdAt,
         updatedAt: docData.updatedAt,
+      };
+      await db.documents.put(serverDocument);
+      await db.syncBaselines.put({
+        documentId,
+        serverUpdatedAt: serverDocument.updatedAt,
+        contentSignature: getDocumentContentSignature(serverDocument),
       });
     }
 

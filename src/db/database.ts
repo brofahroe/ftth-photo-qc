@@ -9,6 +9,8 @@ import {
   PhotoRecord,
   QcDocument,
   SiteReferenceItem,
+  SyncBaseline,
+  SyncConflict,
   SyncOutboxItem,
 } from '../types';
 import { DEFAULT_HEADER, generateId } from '../presets/documentPresets';
@@ -24,6 +26,8 @@ class PhotoQcDatabase extends Dexie {
   settings!: EntityTable<AppSettings, 'id'>;
   siteReferences!: EntityTable<SiteReferenceItem, 'id'>;
   syncOutbox!: EntityTable<SyncOutboxItem, 'id'>;
+  syncBaselines!: EntityTable<SyncBaseline, 'documentId'>;
+  syncConflicts!: EntityTable<SyncConflict, 'documentId'>;
 
   constructor() {
     super('FtthPhotoQcDB');
@@ -47,6 +51,16 @@ class PhotoQcDatabase extends Dexie {
       settings: 'id',
       siteReferences: 'id, clusterId, clusterName, fdtId, region, oltName',
       syncOutbox: 'id, kind, documentId, updatedAt',
+    });
+    this.version(4).stores({
+      documents: 'id, docType, updatedAt, createdAt',
+      photos: 'id, documentId, createdAt',
+      geoCache: 'gridKey, updatedAt',
+      settings: 'id',
+      siteReferences: 'id, clusterId, clusterName, fdtId, region, oltName',
+      syncOutbox: 'id, kind, documentId, updatedAt',
+      syncBaselines: 'documentId',
+      syncConflicts: 'documentId',
     });
   }
 }

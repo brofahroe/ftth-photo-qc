@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  AlertTriangle,
   Archive,
   ArrowDown,
   ArrowLeft,
@@ -66,6 +67,9 @@ import {
   enqueueDocUpsert,
   enqueuePhotoDelete,
   enqueuePhotoUpsert,
+  reconcileServerDocument,
+  resolveSyncConflict,
+  syncAllWithServer,
 } from '../services/syncQueue';
 import { getStoredUserName, promptForUserNameIfNeeded, setStoredUserName } from '../services/userService';
 import {
@@ -84,6 +88,7 @@ import { NextcloudModal } from './NextcloudModal';
 import { PhotoPreviewModal } from './PhotoPreviewModal';
 import { PhotoSlotCard } from './PhotoSlotCard';
 import { SiteReferenceModal } from './SiteReferenceModal';
+import { SyncConflictModal } from './SyncConflictModal';
 import { VendorSettingsModal } from './VendorSettingsModal';
 import { WatermarkEditorModal } from './WatermarkEditorModal';
 
@@ -102,10 +107,19 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     [documentId],
     [] as PhotoRecord[]
   );
-  const pendingSyncCount = useLiveQuery(
-    () => db.syncOutbox.where('documentId').equals(documentId).count(),
+  const pendingSyncItems = useLiveQuery(
+    () => db.syncOutbox.where('documentId').equals(documentId).toArray(),
     [documentId],
-    0
+    []
+  );
+  const pendingSyncCount = pendingSyncItems.length;
+  const queueSyncError = pendingSyncItems.find((item) => item.lastError)?.lastError;
+  const syncConflict = useLiveQuery(
+    async () => {
+      const conflict = await db.syncConflicts.get(documentId);
+      return conflict && !conflict.resolvedAt ? conflict : undefined;
+    },
+    [documentId]
   );
   const dbSites = useLiveQuery(
     () => db.siteReferences.toArray(),
@@ -135,6 +149,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [previewSlotIdx, setPreviewSlotIdx] = useState<number | null>(null);
   const [watermarkSlotIdx, setWatermarkSlotIdx] = useState<number | null>(null);
   const [zipExporting, setZipExporting] = useState<boolean>(false);
+  const [showSyncConflict, setShowSyncConflict] = useState<boolean>(false);
+  const [resolvingConflict, setResolvingConflict] = useState<boolean>(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // Multi-user & Realtime Collaboration state
   const [userName, setUserName] = useState<string>(() => promptForUserNameIfNeeded());
@@ -235,13 +252,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
     const handleDocumentUpdated = async ({ document: updatedDoc }: any) => {
       if (!updatedDoc?.id) return;
-      const pendingDoc = await db.syncOutbox.get(`doc_upsert:${documentId}`);
-      if (pendingDoc) return;
-
-      const curr = await db.documents.get(documentId);
-      if (!curr || updatedDoc.updatedAt > curr.updatedAt) {
-        await db.documents.put(updatedDoc);
-      }
+      await reconcileServerDocument(updatedDoc);
     };
 
     const handleDocumentDeleted = ({ id }: { id?: string }) => {
@@ -773,6 +784,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               >
                 <span>Sync ({pendingSyncCount})</span>
               </div>
+            )}
+            {syncConflict && (
+              <button
+                type="button"
+                onClick={() => setShowSyncConflict(true)}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs font-semibold text-rose-800 lg:w-auto"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Konflik perlu dipilih
+              </button>
             )}
 
             {/* Nextcloud Button */}
@@ -1346,6 +1367,38 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       </div>
 
       {/* Modals */}
+      {(syncError || queueSyncError) && (
+        <div
+          role="status"
+          className="fixed bottom-4 left-1/2 z-[55] -translate-x-1/2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-lg"
+        >
+          {syncError ||
+            `Upload belum berhasil: ${queueSyncError}. Data tetap tersimpan lokal dan akan dicoba ulang.`}
+        </div>
+      )}
+      {showSyncConflict && syncConflict && (
+        <SyncConflictModal
+          conflicts={[syncConflict]}
+          resolvingId={resolvingConflict ? documentId : null}
+          onResolve={async (id, resolution) => {
+            setResolvingConflict(true);
+            try {
+              await resolveSyncConflict(id, resolution);
+              const synced = await syncAllWithServer();
+              setSyncError(
+                synced
+                  ? null
+                  : 'Pilihan disimpan, tetapi sebagian antrean masih menunggu sinkronisasi.'
+              );
+            } catch (err) {
+              setSyncError(err instanceof Error ? err.message : 'Gagal menyimpan pilihan konflik.');
+            } finally {
+              setResolvingConflict(false);
+            }
+          }}
+          onClose={() => setShowSyncConflict(false)}
+        />
+      )}
       {showAddPage && (
         <AddPageModal
           docType={doc.docType}

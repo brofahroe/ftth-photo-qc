@@ -57,11 +57,26 @@ export const NextcloudModal: React.FC<NextcloudModalProps> = ({ onClose }) => {
 
   const handleSyncNow = async () => {
     setSyncing(true);
+    setTestResult(null);
     try {
-      await syncAllWithServer();
-      await fetch(`${getApiBaseUrl()}/api/nextcloud/sync-now`, { method: 'POST' });
-      await new Promise((r) => setTimeout(r, 800));
+      const localSyncSucceeded = await syncAllWithServer();
+      const res = await fetch(`${getApiBaseUrl()}/api/nextcloud/sync-now`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
+      }
+      setTestResult({
+        success: Boolean(data.success) && localSyncSucceeded,
+        message: localSyncSucceeded
+          ? data.message
+          : `Sinkronisasi lokal belum tuntas. ${data.message || ''}`.trim(),
+      });
       await loadStatus();
+    } catch (err) {
+      setTestResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Gagal menjalankan sinkronisasi Nextcloud.',
+      });
     } finally {
       setSyncing(false);
     }

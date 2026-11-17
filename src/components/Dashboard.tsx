@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Archive,
+  AlertTriangle,
   Building2,
   Camera,
   ChevronDown,
@@ -39,6 +40,7 @@ import {
   enqueueDocDelete,
   enqueueDocUpsert,
   enqueuePhotoUpsert,
+  resolveSyncConflict,
   syncAllWithServer,
 } from '../services/syncQueue';
 import {
@@ -52,6 +54,7 @@ import { ExportPdfModal } from './ExportPdfModal';
 import { HelpGuideModal } from './HelpGuideModal';
 import { NewDocumentModal } from './NewDocumentModal';
 import { NextcloudModal } from './NextcloudModal';
+import { SyncConflictModal } from './SyncConflictModal';
 import { SiteReferenceModal } from './SiteReferenceModal';
 import { VendorSettingsModal } from './VendorSettingsModal';
 
@@ -70,7 +73,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
     [],
     [] as QcDocument[]
   );
-  const pendingSyncCount = useLiveQuery(() => db.syncOutbox.count(), [], 0);
+  const pendingSyncItems = useLiveQuery(() => db.syncOutbox.toArray(), [], []);
+  const pendingSyncCount = pendingSyncItems.length;
+  const queueSyncError = pendingSyncItems.find((item) => item.lastError)?.lastError;
+  const syncConflicts = useLiveQuery(
+    () => db.syncConflicts.filter((conflict) => !conflict.resolvedAt).toArray(),
+    [],
+    []
+  );
 
   const [filterType, setFilterType] = useState<'ALL' | DocumentType>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -86,6 +96,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
   const [nextcloudConfigured, setNextcloudConfigured] = useState<boolean>(false);
   const [userName, setUserName] = useState<string>(() => getStoredUserName() || 'Teknisi Lapangan');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [showSyncConflicts, setShowSyncConflicts] = useState<boolean>(false);
+  const [resolvingConflictId, setResolvingConflictId] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
@@ -117,13 +130,44 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
   const handleSyncWithServer = async () => {
     setIsSyncing(true);
     try {
-      await syncAllWithServer();
+      const synced = await syncAllWithServer();
       const st = await getNextcloudStatus();
       setNextcloudConfigured(st.configured);
+      setSyncError(
+        synced
+          ? null
+          : 'Sinkronisasi belum tuntas. Periksa antrean atau selesaikan konflik yang terdeteksi.'
+      );
     } catch (e) {
       console.warn('[Sync Error]', e);
+      setSyncError(
+        e instanceof Error
+          ? `Server Photo QC tidak dapat dijangkau: ${e.message}`
+          : 'Server Photo QC tidak dapat dijangkau.'
+      );
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleResolveConflict = async (
+    documentId: string,
+    resolution: 'local' | 'server'
+  ) => {
+    setResolvingConflictId(documentId);
+    try {
+      await resolveSyncConflict(documentId, resolution);
+      const synced = await syncAllWithServer();
+      setSyncError(
+        synced
+          ? null
+          : 'Pilihan konflik disimpan, tetapi sebagian antrean masih menunggu sinkronisasi.'
+      );
+    } catch (err) {
+      console.error('[Sync Conflict] Gagal menyimpan pilihan:', err);
+      setSyncError(err instanceof Error ? err.message : 'Gagal menyimpan pilihan konflik.');
+    } finally {
+      setResolvingConflictId(null);
     }
   };
 
@@ -305,6 +349,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                       Antrean Sync ({pendingSyncCount})
                     </span>
                   )}
+                  {syncConflicts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSyncConflicts(true)}
+                      className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-amber-100"
+                    >
+                      <AlertTriangle className="h-3 w-3" />
+                      Konflik ({syncConflicts.length})
+                    </button>
+                  )}
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
                   Dokumentasi Foto CW, CW SF, EL, dan EL SF • Watermark opsional
@@ -465,6 +519,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
 
       {/* Main Content */}
       <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 flex-1 space-y-5">
+        {(syncError || queueSyncError) && (
+          <div
+            role="status"
+            className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              {syncError || `Upload belum berhasil: ${queueSyncError}. Data tetap tersimpan lokal dan akan dicoba ulang.`}
+            </span>
+          </div>
+        )}
         {/* Filter & Search Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
@@ -775,6 +840,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
 
       {showNextcloudModal && (
         <NextcloudModal onClose={() => setShowNextcloudModal(false)} />
+      )}
+      {showSyncConflicts && (
+        <SyncConflictModal
+          conflicts={syncConflicts}
+          resolvingId={resolvingConflictId}
+          onResolve={handleResolveConflict}
+          onClose={() => setShowSyncConflicts(false)}
+        />
       )}
     </div>
   );
