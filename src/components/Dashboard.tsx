@@ -33,10 +33,14 @@ import {
   importDocumentFromZip,
 } from '../db/database';
 import {
-  syncDocumentsFromServer,
-  deleteDocumentOnServer,
   getNextcloudStatus,
 } from '../services/apiSync';
+import {
+  enqueueDocDelete,
+  enqueueDocUpsert,
+  enqueuePhotoUpsert,
+  syncAllWithServer,
+} from '../services/syncQueue';
 import {
   getStoredUserName,
   promptForUserNameIfNeeded,
@@ -66,6 +70,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
     [],
     [] as QcDocument[]
   );
+  const pendingSyncCount = useLiveQuery(() => db.syncOutbox.count(), [], 0);
 
   const [filterType, setFilterType] = useState<'ALL' | DocumentType>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -112,7 +117,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
   const handleSyncWithServer = async () => {
     setIsSyncing(true);
     try {
-      await syncDocumentsFromServer();
+      await syncAllWithServer();
       const st = await getNextcloudStatus();
       setNextcloudConfigured(st.configured);
     } catch (e) {
@@ -160,6 +165,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
     setImportingZip(true);
     try {
       const imported = await importDocumentFromZip(file);
+      await enqueueDocUpsert(imported.id);
+      for (const page of imported.pages) {
+        for (const slot of page.slots) {
+          if (slot.photoId) {
+            await enqueuePhotoUpsert(slot.photoId, imported.id, page.id, slot.slotIndex);
+          }
+        }
+      }
       onOpenDocument(imported.id);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Gagal mengimpor file proyek.');
@@ -180,6 +193,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
         slots: p.slots.map((s) => ({ ...s, photoId: null })),
       })),
     });
+    await enqueueDocUpsert(copy.id);
     onOpenDocument(copy.id);
   };
 
@@ -204,7 +218,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
       return;
     }
     await deleteDocumentCascade(doc.id);
-    deleteDocumentOnServer(doc.id).catch(console.error);
+    await enqueueDocDelete(doc.id);
   };
 
   const filteredDocs = docs.filter((d) => {
@@ -283,6 +297,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDocument }) => {
                       </>
                     )}
                   </span>
+                  {pendingSyncCount > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-sky-500/20 text-sky-200 border border-sky-400/30"
+                      title="Item menunggu sinkronisasi ke server"
+                    >
+                      Antrean Sync ({pendingSyncCount})
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
                   Dokumentasi Foto CW, CW SF, EL, dan EL SF • Watermark opsional

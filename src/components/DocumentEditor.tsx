@@ -55,17 +55,18 @@ import {
   leaveDocumentRoom,
   emitLockSlot,
   emitUnlockSlot,
-  emitDocumentUpdated,
   getSocket,
 } from '../services/socketService';
 import {
-  uploadPhotoToServer,
-  updateDocumentOnServer,
   fetchPhotoFromServerAndCache,
   syncDocumentAndPhotosFromServer,
   getNextcloudStatus,
 } from '../services/apiSync';
-import { getApiBaseUrl } from '../services/serverUrl';
+import {
+  enqueueDocUpsert,
+  enqueuePhotoDelete,
+  enqueuePhotoUpsert,
+} from '../services/syncQueue';
 import { getStoredUserName, promptForUserNameIfNeeded, setStoredUserName } from '../services/userService';
 import {
   DocumentHeader,
@@ -100,6 +101,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     () => db.photos.where('documentId').equals(documentId).toArray(),
     [documentId],
     [] as PhotoRecord[]
+  );
+  const pendingSyncCount = useLiveQuery(
+    () => db.syncOutbox.where('documentId').equals(documentId).count(),
+    [documentId],
+    0
   );
   const dbSites = useLiveQuery(
     () => db.siteReferences.toArray(),
@@ -136,10 +142,37 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [presenceUsers, setPresenceUsers] = useState<string[]>([]);
 
   const pageMultiUploadRef = useRef<HTMLInputElement | null>(null);
+  const docSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     ensureSiteReferencesSeeded();
   }, []);
+
+  // Flush any pending debounced document edit if leaving this view
+  useEffect(() => {
+    return () => {
+      if (docSyncTimerRef.current) {
+        clearTimeout(docSyncTimerRef.current);
+        docSyncTimerRef.current = null;
+        void enqueueDocUpsert(documentId);
+      }
+    };
+  }, [documentId]);
+
+  const scheduleDocSync = (debounceMs = 0) => {
+    if (docSyncTimerRef.current) {
+      clearTimeout(docSyncTimerRef.current);
+      docSyncTimerRef.current = null;
+    }
+    if (debounceMs <= 0) {
+      void enqueueDocUpsert(documentId);
+      return;
+    }
+    docSyncTimerRef.current = setTimeout(() => {
+      docSyncTimerRef.current = null;
+      void enqueueDocUpsert(documentId);
+    }, debounceMs);
+  };
 
   // Join Document Room & listen for Socket.io Realtime Collaboration
   useEffect(() => {
@@ -152,6 +185,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     syncDocumentAndPhotosFromServer(documentId).catch(console.error);
 
     const s = getSocket();
+
+    const handleReconnect = () => {
+      joinDocumentRoom(documentId, name);
+      syncDocumentAndPhotosFromServer(documentId).catch(console.error);
+    };
 
     const handleInitialLocks = (initial: Record<string, string>) => {
       setLocks(initial || {});
@@ -172,27 +210,43 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     const handleSlotUpdated = async ({ pageId, slotIndex, photoRecord, userName: author }: any) => {
       console.log(`[Realtime] Received slot update for ${pageId}:${slotIndex} by ${author}`, photoRecord);
       if (photoRecord?.id) {
-        await fetchPhotoFromServerAndCache(photoRecord.id, documentId, photoRecord);
+        const pendingPhoto = await db.syncOutbox.get(`photo_upsert:${photoRecord.id}`);
+        if (!pendingPhoto) {
+          await fetchPhotoFromServerAndCache(photoRecord.id, documentId, photoRecord);
+        }
       }
-      await updateDocument(documentId, (curr) => ({
-        ...curr,
-        pages: curr.pages.map((p) =>
-          p.id === pageId
-            ? {
-                ...p,
-                slots: p.slots.map((s) =>
-                  s.slotIndex === slotIndex ? { ...s, photoId: photoRecord ? photoRecord.id : null } : s
-                ),
-              }
-            : p
-        ),
-      }));
+      const pendingDoc = await db.syncOutbox.get(`doc_upsert:${documentId}`);
+      if (pendingDoc) return;
+
+      const curr = await db.documents.get(documentId);
+      if (!curr) return;
+      const nextPages = curr.pages.map((p) =>
+        p.id === pageId
+          ? {
+              ...p,
+              slots: p.slots.map((s) =>
+                s.slotIndex === slotIndex ? { ...s, photoId: photoRecord ? photoRecord.id : null } : s
+              ),
+            }
+          : p
+      );
+      await db.documents.put({ ...curr, pages: nextPages });
     };
 
-    const handleDocumentUpdated = ({ document: updatedDoc, userName: author }: any) => {
-      if (author === userName) return;
-      if (updatedDoc) {
-        db.documents.put(updatedDoc).catch(console.error);
+    const handleDocumentUpdated = async ({ document: updatedDoc }: any) => {
+      if (!updatedDoc?.id) return;
+      const pendingDoc = await db.syncOutbox.get(`doc_upsert:${documentId}`);
+      if (pendingDoc) return;
+
+      const curr = await db.documents.get(documentId);
+      if (!curr || updatedDoc.updatedAt > curr.updatedAt) {
+        await db.documents.put(updatedDoc);
+      }
+    };
+
+    const handleDocumentDeleted = ({ id }: { id?: string }) => {
+      if (id === documentId) {
+        onBack();
       }
     };
 
@@ -200,11 +254,13 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       setPresenceUsers(users || []);
     };
 
+    s.on('connect', handleReconnect);
     s.on('initial_locks', handleInitialLocks);
     s.on('slot_locked', handleSlotLocked);
     s.on('slot_unlocked', handleSlotUnlocked);
     s.on('slot_updated', handleSlotUpdated);
     s.on('document_updated', handleDocumentUpdated);
+    s.on('document_deleted', handleDocumentDeleted);
     s.on('presence_list', handlePresenceList);
 
     getNextcloudStatus()
@@ -212,15 +268,17 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       .catch(() => {});
 
     return () => {
+      s.off('connect', handleReconnect);
       s.off('initial_locks', handleInitialLocks);
       s.off('slot_locked', handleSlotLocked);
       s.off('slot_unlocked', handleSlotUnlocked);
       s.off('slot_updated', handleSlotUpdated);
       s.off('document_updated', handleDocumentUpdated);
+      s.off('document_deleted', handleDocumentDeleted);
       s.off('presence_list', handlePresenceList);
       leaveDocumentRoom();
     };
-  }, [documentId, userName]);
+  }, [documentId, userName, onBack]);
 
   useEffect(() => {
     setSwapSourceSlot(null);
@@ -247,6 +305,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       ...curr,
       header: { ...curr.header, ...patch },
     }));
+    scheduleDocSync(400);
   };
 
   const handleUpdateTitle = async (newTitle: string) => {
@@ -254,6 +313,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       ...curr,
       title: newTitle,
     }));
+    scheduleDocSync(400);
   };
 
   const handleToggleDefaultWatermark = async () => {
@@ -261,6 +321,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       ...curr,
       defaultWatermarkOnUpload: !curr.defaultWatermarkOnUpload,
     }));
+    scheduleDocSync(0);
   };
 
   const handleAddPages = async (newPages: DocumentPage[]) => {
@@ -271,6 +332,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       pages: [...curr.pages, ...newPages],
     }));
     setActivePageIdx(prevCount);
+    scheduleDocSync(0);
   };
 
   const handleMovePage = async (idx: number, direction: -1 | 1) => {
@@ -283,6 +345,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       return { ...curr, pages: arr };
     });
     setActivePageIdx(targetIdx);
+    scheduleDocSync(0);
   };
 
   const handleDuplicatePage = async (idx: number) => {
@@ -299,6 +362,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       return { ...curr, pages: arr };
     });
     setActivePageIdx(idx + 1);
+    scheduleDocSync(0);
   };
 
   const handleDeletePage = async (idx: number) => {
@@ -318,9 +382,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       ...curr,
       pages: curr.pages.filter((_, i) => i !== idx),
     }));
+    scheduleDocSync(0);
 
     for (const pid of removedPhotoIds) {
       await deletePhotoIfUnreferenced(doc.id, pid);
+      const stillExists = await db.photos.get(pid);
+      if (!stillExists) {
+        await enqueuePhotoDelete(pid, doc.id);
+      }
     }
 
     if (safePageIdx >= doc.pages.length - 1) {
@@ -336,6 +405,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       ...curr,
       pages: curr.pages.map((p) => (p.id === pageId ? { ...p, ...patch } : p)),
     }));
+    scheduleDocSync(400);
   };
 
   const handleChangeSlotDescription = async (slotIndex: number, newDesc: string) => {
@@ -354,6 +424,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           : p
       ),
     }));
+    scheduleDocSync(400);
   };
 
   const markSlotBusy = (pageId: string, slotIdx: number, isBusy: boolean) => {
@@ -394,14 +465,17 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         ),
       }));
 
-      // Multi-user Realtime Broadcast & Nextcloud Sync
-      uploadPhotoToServer({ record, pageId, slotIndex }).then((uploaded) => {
-        if (!uploaded) console.warn('[Sync] Foto gagal upload ke server.');
-      }).catch((err) => console.warn('[Sync] Foto gagal upload ke server:', err));
+      // Multi-user Realtime Broadcast & Nextcloud Sync (with offline auto-retry)
+      await enqueueDocUpsert(doc.id);
+      await enqueuePhotoUpsert(record.id, doc.id, pageId, slotIndex);
       emitUnlockSlot(doc.id, pageId, slotIndex);
 
       if (oldPhotoId) {
         await deletePhotoIfUnreferenced(doc.id, oldPhotoId);
+        const stillExists = await db.photos.get(oldPhotoId);
+        if (!stillExists) {
+          await enqueuePhotoDelete(oldPhotoId, doc.id);
+        }
       }
     } finally {
       markSlotBusy(pageId, slotIndex, false);
@@ -473,13 +547,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           ),
         }));
 
-        // Multi-user Realtime Broadcast & Nextcloud Sync
-        uploadPhotoToServer({ record, pageId, slotIndex: slotIdx }).then((uploaded) => {
-          if (!uploaded) console.warn('[Sync] Foto gagal upload ke server.');
-        }).catch((err) => console.warn('[Sync] Foto gagal upload ke server:', err));
+        // Multi-user Realtime Broadcast & Nextcloud Sync (with offline auto-retry)
+        await enqueueDocUpsert(doc.id);
+        await enqueuePhotoUpsert(record.id, doc.id, pageId, slotIdx);
 
         if (oldPhotoId) {
           await deletePhotoIfUnreferenced(doc.id, oldPhotoId);
+          const stillExists = await db.photos.get(oldPhotoId);
+          if (!stillExists) {
+            await enqueuePhotoDelete(oldPhotoId, doc.id);
+          }
         }
         markSlotBusy(pageId, slotIdx, false);
       }
@@ -505,6 +582,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       }),
     }));
     setSwapSourceSlot(null);
+    scheduleDocSync(0);
   };
 
   const handleTapSwap = (slotIdx: number) => {
@@ -523,7 +601,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     if (!pid) return;
     markSlotBusy(activePage.id, slotIdx, true);
     try {
-      await rotatePhotoRecord(pid);
+      const updated = await rotatePhotoRecord(pid);
+      if (updated) {
+        await enqueuePhotoUpsert(updated.id, doc.id, activePage.id, slotIdx);
+      }
     } finally {
       markSlotBusy(activePage.id, slotIdx, false);
     }
@@ -550,8 +631,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     }));
     await deletePhotoIfUnreferenced(doc.id, oldPhotoId);
 
-    // Notify server & other clients
-    fetch(`${getApiBaseUrl()}/api/photos/${oldPhotoId}`, { method: 'DELETE' }).catch(console.error);
+    // Sync deletion to server, other clients & Nextcloud
+    await enqueueDocUpsert(doc.id);
+    const stillExists = await db.photos.get(oldPhotoId);
+    if (!stillExists) {
+      await enqueuePhotoDelete(oldPhotoId, doc.id);
+    }
   };
 
   const handleExportZip = async () => {
@@ -677,6 +762,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               >
                 <Users className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{presenceUsers.length} Online</span>
+              </div>
+            )}
+
+            {/* Pending Sync Outbox Pill */}
+            {pendingSyncCount > 0 && (
+              <div
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-amber-50 border border-amber-200 px-2.5 py-2 text-xs font-semibold text-amber-800 lg:w-auto"
+                title="Perubahan/foto sedang disinkronkan ke server & Nextcloud"
+              >
+                <span>Sync ({pendingSyncCount})</span>
               </div>
             )}
 
@@ -1279,11 +1374,27 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           activePageIndex={safePageIdx}
           defaultWatermarkEnabled={doc.defaultWatermarkOnUpload}
           onComplete={async (updatedPages, lastIdx) => {
+            const prevPhotoIds = new Set<string>();
+            for (const p of doc.pages) {
+              for (const s of p.slots) {
+                if (s.photoId) prevPhotoIds.add(s.photoId);
+              }
+            }
+
             await updateDocument(doc.id, (curr) => ({
               ...curr,
               pages: updatedPages,
             }));
             setActivePageIdx(lastIdx);
+
+            await enqueueDocUpsert(doc.id);
+            for (const p of updatedPages) {
+              for (const s of p.slots) {
+                if (s.photoId && !prevPhotoIds.has(s.photoId)) {
+                  await enqueuePhotoUpsert(s.photoId, doc.id, p.id, s.slotIndex);
+                }
+              }
+            }
           }}
           onClose={() => setShowBulkUpload(false)}
         />
@@ -1361,7 +1472,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             activePage.slots.filter((s) => s.photoId && photoMap.has(s.photoId)).length
           }
           onSaveSingle={async (wmEnabled, wmData) => {
-            await updatePhotoWatermark(watermarkRecord.id, wmEnabled, wmData);
+            const updated = await updatePhotoWatermark(watermarkRecord.id, wmEnabled, wmData);
+            if (updated) {
+              await enqueuePhotoUpsert(updated.id, doc.id, activePage.id, watermarkSlot.slotIndex);
+            }
           }}
           onSaveAllInPage={async (wmEnabled, wmData, syncTimestamp) => {
             for (const s of activePage.slots) {
@@ -1377,7 +1491,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   ? wmData.isoTimestamp
                   : existing.watermark.isoTimestamp || wmData.isoTimestamp,
               };
-              await updatePhotoWatermark(existing.id, wmEnabled, mergedWm);
+              const updated = await updatePhotoWatermark(existing.id, wmEnabled, mergedWm);
+              if (updated) {
+                await enqueuePhotoUpsert(updated.id, doc.id, activePage.id, s.slotIndex);
+              }
             }
           }}
           onClose={() => setWatermarkSlotIdx(null)}

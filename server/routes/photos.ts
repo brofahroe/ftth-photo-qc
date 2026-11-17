@@ -3,7 +3,10 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import { db } from '../db/schema.js';
-import { processNextcloudQueue } from '../services/nextcloud.js';
+import {
+  queueNextcloudDeletion,
+  triggerNextcloudSync,
+} from '../services/nextcloud.js';
 import { ensureStorageDir, uploadsDir } from '../storage.js';
 
 export const photosRouter = Router();
@@ -74,6 +77,28 @@ photosRouter.post(
       const parsedWidth = width ? parseInt(width, 10) : 0;
       const parsedHeight = height ? parseInt(height, 10) : 0;
       const parsedCreatedAt = createdAt ? parseInt(createdAt, 10) : now;
+
+      const existingPhoto = db.prepare(
+        'SELECT raw_file_name, rendered_file_name, nextcloud_path FROM photos WHERE id = ?'
+      ).get(photoId) as any;
+
+      if (existingPhoto) {
+        if (existingPhoto.rendered_file_name && existingPhoto.rendered_file_name !== path.basename(renderedFile.filename)) {
+          const oldRendered = path.join(uploadsDir, existingPhoto.rendered_file_name);
+          if (fs.existsSync(oldRendered)) fs.unlinkSync(oldRendered);
+        }
+        if (
+          existingPhoto.raw_file_name &&
+          existingPhoto.raw_file_name !== existingPhoto.rendered_file_name &&
+          existingPhoto.raw_file_name !== path.basename(rawFileName)
+        ) {
+          const oldRaw = path.join(uploadsDir, existingPhoto.raw_file_name);
+          if (fs.existsSync(oldRaw)) fs.unlinkSync(oldRaw);
+        }
+        if (existingPhoto.nextcloud_path) {
+          queueNextcloudDeletion(existingPhoto.nextcloud_path);
+        }
+      }
 
       // Upsert into SQLite
       db.prepare(`
@@ -155,6 +180,8 @@ photosRouter.post(
             watermark: JSON.parse(watermarkJson),
             width: parsedWidth,
             height: parsedHeight,
+            createdAt: parsedCreatedAt,
+            updatedAt: now,
           },
           userName: capturedBy || 'Teknisi Lapangan',
         });
@@ -162,12 +189,30 @@ photosRouter.post(
           pageId,
           slotIndex: parsedSlotIndex,
         });
+        const docRow = db.prepare(`
+          SELECT d.*, (SELECT COUNT(*) FROM photos p WHERE p.document_id = d.id) as photo_count
+          FROM documents d WHERE d.id = ?
+        `).get(documentId) as any;
+        if (docRow) {
+          io.to('workspace').emit('document_changed', {
+            document: {
+              id: docRow.id,
+              title: docRow.title,
+              docType: docRow.doc_type,
+              header: JSON.parse(docRow.header_json || '{}'),
+              pages: JSON.parse(docRow.pages_json || '[]'),
+              defaultWatermarkOnUpload: Boolean(docRow.default_watermark_on_upload),
+              createdAt: docRow.created_at,
+              updatedAt: docRow.updated_at,
+              photoCount: docRow.photo_count || 0,
+            },
+            userName: capturedBy || 'Teknisi Lapangan',
+          });
+        }
       }
 
       // Trigger background sync to Nextcloud
-      setTimeout(() => {
-        processNextcloudQueue().catch((err) => console.error('[Nextcloud Queue Error]', err));
-      }, 500);
+      triggerNextcloudSync();
 
       res.status(201).json({
         id: photoId,
@@ -214,7 +259,7 @@ photosRouter.get('/:id/rendered', (req: Request, res: Response) => {
     }
 
     res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'no-cache');
     fs.createReadStream(filePath).pipe(res);
   } catch (error: any) {
     res.status(500).send(error.message);
@@ -242,7 +287,7 @@ photosRouter.get('/:id/raw', (req: Request, res: Response) => {
     }
 
     res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'no-cache');
     fs.createReadStream(filePath).pipe(res);
   } catch (error: any) {
     res.status(500).send(error.message);
@@ -258,6 +303,8 @@ photosRouter.delete('/:id', (req: Request, res: Response) => {
     }
 
     const photo = db.prepare('SELECT * FROM photos WHERE id = ?').get(id) as any;
+    db.prepare('DELETE FROM photos WHERE id = ?').run(id);
+
     if (photo) {
       if (photo.rendered_file_name) {
         const p1 = path.join(uploadsDir, photo.rendered_file_name);
@@ -268,9 +315,14 @@ photosRouter.delete('/:id', (req: Request, res: Response) => {
         if (fs.existsSync(p2)) fs.unlinkSync(p2);
       }
 
+      if (photo.nextcloud_path) {
+        queueNextcloudDeletion(photo.nextcloud_path);
+        triggerNextcloudSync();
+      }
+
       // Update documents pages_json to clear slot photoId
       if (photo.document_id) {
-        const docRow = db.prepare('SELECT pages_json FROM documents WHERE id = ?').get(photo.document_id) as any;
+        const docRow = db.prepare('SELECT * FROM documents WHERE id = ?').get(photo.document_id) as any;
         if (docRow && docRow.pages_json) {
           try {
             const pages = JSON.parse(docRow.pages_json);
@@ -278,11 +330,14 @@ photosRouter.delete('/:id', (req: Request, res: Response) => {
               ...p,
               slots: p.slots.map((s: any) => (s.photoId === id ? { ...s, photoId: null } : s)),
             }));
+            const updatedAt = Date.now();
             db.prepare('UPDATE documents SET pages_json = ?, updated_at = ? WHERE id = ?').run(
               JSON.stringify(updated),
-              Date.now(),
+              updatedAt,
               photo.document_id
             );
+            docRow.pages_json = JSON.stringify(updated);
+            docRow.updated_at = updatedAt;
           } catch {}
         }
 
@@ -294,10 +349,26 @@ photosRouter.delete('/:id', (req: Request, res: Response) => {
             photoRecord: null,
             userName: 'System',
           });
+          if (docRow) {
+            const photoCount = (db.prepare('SELECT COUNT(*) as c FROM photos WHERE document_id = ?').get(photo.document_id) as any)?.c || 0;
+            io.to('workspace').emit('document_changed', {
+              document: {
+                id: docRow.id,
+                title: docRow.title,
+                docType: docRow.doc_type,
+                header: JSON.parse(docRow.header_json || '{}'),
+                pages: JSON.parse(docRow.pages_json || '[]'),
+                defaultWatermarkOnUpload: Boolean(docRow.default_watermark_on_upload),
+                createdAt: docRow.created_at,
+                updatedAt: docRow.updated_at,
+                photoCount,
+              },
+              userName: 'System',
+            });
+          }
         }
       }
     }
-    db.prepare('DELETE FROM photos WHERE id = ?').run(id);
     res.json({ success: true, id });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

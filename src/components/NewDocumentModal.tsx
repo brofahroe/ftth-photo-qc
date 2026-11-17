@@ -24,7 +24,7 @@ import {
   db,
   ensureSiteReferencesSeeded,
 } from '../db/database';
-import { pushDocumentToServer } from '../services/apiSync';
+import { enqueueDocUpsert } from '../services/syncQueue';
 import {
   DocumentPage,
   DocumentType,
@@ -224,10 +224,8 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
         initialPages,
       });
 
-      // Sync to SQLite Server & Nextcloud workspace
-      pushDocumentToServer(created).catch((err) =>
-        console.warn('[Sync] Failed to push new document to server:', err)
-      );
+      // Sync to SQLite Server & Nextcloud workspace (with offline auto-retry)
+      await enqueueDocUpsert(created.id);
 
       onCreated(created);
     } finally {

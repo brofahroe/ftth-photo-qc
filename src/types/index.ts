@@ -126,3 +126,15 @@ export interface SiteReferenceItem {
   fdtId: string;          // e.g. "BLA-CPU-D05"
   oltName: string;        // e.g. "BALUN"
 }
+
+export interface SyncOutboxItem {
+  id: string;
+  kind: 'doc_upsert' | 'doc_delete' | 'photo_upsert' | 'photo_delete';
+  documentId: string;
+  photoId?: string;
+  pageId?: string;
+  slotIndex?: number;
+  attempts: number;
+  lastError?: string;
+  updatedAt: number;
+}

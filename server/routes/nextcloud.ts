@@ -33,9 +33,13 @@ nextcloudRouter.get('/status', (req: Request, res: Response) => {
     const config = getNextcloudConfig();
     const isConfigured = Boolean(config.url && config.username && config.password);
 
-    const pendingCount = (db.prepare(`SELECT COUNT(*) as count FROM photos WHERE nextcloud_status IN ('pending', 'uploading')`).get() as any)?.count || 0;
-    const syncedCount = (db.prepare(`SELECT COUNT(*) as count FROM photos WHERE nextcloud_status = 'synced'`).get() as any)?.count || 0;
-    const failedCount = (db.prepare(`SELECT COUNT(*) as count FROM photos WHERE nextcloud_status = 'failed'`).get() as any)?.count || 0;
+    const pendingPhotos = (db.prepare(`SELECT COUNT(*) as count FROM photos WHERE nextcloud_status IN ('pending', 'uploading')`).get() as any)?.count || 0;
+    const syncedPhotos = (db.prepare(`SELECT COUNT(*) as count FROM photos WHERE nextcloud_status = 'synced'`).get() as any)?.count || 0;
+    const failedPhotos = (db.prepare(`SELECT COUNT(*) as count FROM photos WHERE nextcloud_status = 'failed'`).get() as any)?.count || 0;
+
+    const pendingFolders = (db.prepare(`SELECT COUNT(*) as count FROM documents WHERE nextcloud_folder_status = 'pending'`).get() as any)?.count || 0;
+    const failedFolders = (db.prepare(`SELECT COUNT(*) as count FROM documents WHERE nextcloud_folder_status = 'failed'`).get() as any)?.count || 0;
+    const pendingDeletions = (db.prepare(`SELECT COUNT(*) as count FROM nextcloud_deletions WHERE attempts < 10`).get() as any)?.count || 0;
 
     res.json({
       configured: isConfigured,
@@ -43,9 +47,9 @@ nextcloudRouter.get('/status', (req: Request, res: Response) => {
       username: config.username || null,
       baseDir: config.baseDir,
       queue: {
-        pending: pendingCount,
-        synced: syncedCount,
-        failed: failedCount,
+        pending: pendingPhotos + pendingFolders + pendingDeletions,
+        synced: syncedPhotos,
+        failed: failedPhotos + failedFolders,
       },
     });
   } catch (error: any) {

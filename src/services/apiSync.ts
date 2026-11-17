@@ -3,65 +3,104 @@ import { PhotoRecord, QcDocument } from '../types';
 import { getStoredUserName } from './userService';
 import { getApiBaseUrl } from './serverUrl';
 
-export async function fetchServerDocuments(): Promise<QcDocument[]> {
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {},
+  timeoutMs = 45_000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${getApiBaseUrl()}/api/documents`);
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function fetchServerDocuments(): Promise<QcDocument[] | null> {
+  try {
+    const res = await fetchWithTimeout(`${getApiBaseUrl()}/api/documents`, {
+      cache: 'no-store',
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const docs = await res.json();
-    return docs;
+    return await res.json();
   } catch (err) {
     console.warn('[Sync] Failed to fetch server documents:', err);
+    return null;
+  }
+}
+
+export async function fetchServerDeletedDocIds(): Promise<string[]> {
+  try {
+    const res = await fetchWithTimeout(`${getApiBaseUrl()}/api/documents/deleted-ids`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data?.deletedIds) ? data.deletedIds : [];
+  } catch {
     return [];
   }
 }
 
-export async function syncDocumentsFromServer(): Promise<void> {
+export async function pushDocumentToServer(doc: QcDocument): Promise<boolean> {
   try {
-    const serverDocs = await fetchServerDocuments();
-    if (!serverDocs || serverDocs.length === 0) return;
-
-    for (const sDoc of serverDocs) {
-      const localDoc = await db.documents.get(sDoc.id);
-      if (!localDoc || sDoc.updatedAt > localDoc.updatedAt) {
-        await db.documents.put(sDoc);
-      }
-    }
-  } catch (err) {
-    console.warn('[Sync] Error syncing documents from server:', err);
-  }
-}
-
-export async function pushDocumentToServer(doc: QcDocument): Promise<void> {
-  try {
-    await fetch(`${getApiBaseUrl()}/api/documents`, {
+    const userName = getStoredUserName() || 'Teknisi Lapangan';
+    const res = await fetchWithTimeout(`${getApiBaseUrl()}/api/documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(doc),
+      body: JSON.stringify({ ...doc, updatedBy: userName }),
     });
+    return res.ok;
   } catch (err) {
     console.warn('[Sync] Failed to push document to server:', err);
+    return false;
   }
 }
 
-export async function updateDocumentOnServer(docId: string, patch: Partial<QcDocument>): Promise<void> {
+export async function updateDocumentOnServer(
+  docId: string,
+  patch: Partial<QcDocument>,
+  fullDocFallback?: QcDocument
+): Promise<boolean> {
   try {
-    await fetch(`${getApiBaseUrl()}/api/documents/${docId}`, {
+    const userName = getStoredUserName() || 'Teknisi Lapangan';
+    const res = await fetchWithTimeout(`${getApiBaseUrl()}/api/documents/${docId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...patch, updatedBy: userName }),
     });
+    if (res.status === 404 && fullDocFallback) {
+      return await pushDocumentToServer(fullDocFallback);
+    }
+    return res.ok;
   } catch (err) {
     console.warn('[Sync] Failed to update document on server:', err);
+    return false;
   }
 }
 
-export async function deleteDocumentOnServer(docId: string): Promise<void> {
+export async function deleteDocumentOnServer(docId: string): Promise<boolean> {
   try {
-    await fetch(`${getApiBaseUrl()}/api/documents/${docId}`, {
+    const res = await fetchWithTimeout(`${getApiBaseUrl()}/api/documents/${docId}`, {
       method: 'DELETE',
     });
+    return res.ok || res.status === 404;
   } catch (err) {
     console.warn('[Sync] Failed to delete document on server:', err);
+    return false;
+  }
+}
+
+export async function deletePhotoOnServer(photoId: string): Promise<boolean> {
+  try {
+    const res = await fetchWithTimeout(`${getApiBaseUrl()}/api/photos/${photoId}`, {
+      method: 'DELETE',
+    });
+    return res.ok || res.status === 404;
+  } catch (err) {
+    console.warn('[Sync] Failed to delete photo on server:', err);
+    return false;
   }
 }
 
@@ -88,10 +127,14 @@ export async function uploadPhotoToServer(params: {
     formData.append('renderedImage', params.record.renderedBlob, `rendered_${params.record.id}.jpg`);
     formData.append('rawImage', params.record.rawBlob, `raw_${params.record.id}.jpg`);
 
-    const res = await fetch(`${getApiBaseUrl()}/api/photos/upload`, {
-      method: 'POST',
-      body: formData,
-    });
+    const res = await fetchWithTimeout(
+      `${getApiBaseUrl()}/api/photos/upload`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+      60_000
+    );
 
     if (!res.ok) {
       console.warn(`[Sync] Upload photo failed with status ${res.status}`);
@@ -112,16 +155,30 @@ export async function fetchPhotoFromServerAndCache(
 ): Promise<PhotoRecord | null> {
   try {
     const existing = await db.photos.get(photoId);
-    if (existing && existing.documentId === documentId) return existing;
+    const remoteUpdatedAt = typeof meta?.updatedAt === 'number' ? meta.updatedAt : 0;
+    if (
+      existing &&
+      existing.documentId === documentId &&
+      (!remoteUpdatedAt || existing.updatedAt >= remoteUpdatedAt)
+    ) {
+      return existing;
+    }
 
     const base = getApiBaseUrl();
-    const renderedRes = await fetch(`${base}/api/photos/${photoId}/rendered`);
+    const bust = remoteUpdatedAt || Date.now();
+    const renderedRes = await fetchWithTimeout(
+      `${base}/api/photos/${photoId}/rendered?v=${bust}`,
+      { cache: 'no-store' }
+    );
     if (!renderedRes.ok) return null;
     const renderedBlob = await renderedRes.blob();
 
     let rawBlob = renderedBlob;
     try {
-      const rawRes = await fetch(`${base}/api/photos/${photoId}/raw`);
+      const rawRes = await fetchWithTimeout(
+        `${base}/api/photos/${photoId}/raw?v=${bust}`,
+        { cache: 'no-store' }
+      );
       if (rawRes.ok) {
         rawBlob = await rawRes.blob();
       }
@@ -129,7 +186,7 @@ export async function fetchPhotoFromServerAndCache(
 
     const record: PhotoRecord = {
       id: photoId,
-      documentId: documentId,
+      documentId,
       rawBlob,
       renderedBlob,
       rotation: meta?.rotation ?? 0,
@@ -142,7 +199,7 @@ export async function fetchPhotoFromServerAndCache(
       width: meta?.width || 1400,
       height: meta?.height || 1050,
       createdAt: meta?.createdAt || Date.now(),
-      updatedAt: meta?.updatedAt || Date.now(),
+      updatedAt: remoteUpdatedAt || Date.now(),
     };
 
     await db.photos.put(record);
@@ -156,13 +213,16 @@ export async function fetchPhotoFromServerAndCache(
 export async function syncDocumentAndPhotosFromServer(documentId: string): Promise<void> {
   try {
     const base = getApiBaseUrl();
-    const res = await fetch(`${base}/api/documents/${documentId}`);
+    const res = await fetchWithTimeout(`${base}/api/documents/${documentId}`, {
+      cache: 'no-store',
+    });
     if (!res.ok) return;
     const docData = await res.json();
 
-    // 1. Update local document
+    // 1. Update local document if server is newer or equal
     const localDoc = await db.documents.get(documentId);
-    if (!localDoc || docData.updatedAt >= localDoc.updatedAt) {
+    const pendingOutbox = await db.syncOutbox.get(`doc_upsert:${documentId}`);
+    if (!pendingOutbox && (!localDoc || docData.updatedAt >= localDoc.updatedAt)) {
       await db.documents.put({
         id: docData.id,
         title: docData.title,
@@ -175,14 +235,13 @@ export async function syncDocumentAndPhotosFromServer(documentId: string): Promi
       });
     }
 
-    // 2. Fetch all missing photos for this document from server
+    // 2. Fetch missing or updated photos for this document from server
     if (docData.photos) {
       const photos = Object.values(docData.photos) as any[];
       for (const p of photos) {
-        const localPhoto = await db.photos.get(p.id);
-        if (!localPhoto) {
-          await fetchPhotoFromServerAndCache(p.id, documentId, p);
-        }
+        const pendingPhoto = await db.syncOutbox.get(`photo_upsert:${p.id}`);
+        if (pendingPhoto) continue;
+        await fetchPhotoFromServerAndCache(p.id, documentId, p);
       }
     }
   } catch (err) {
@@ -190,19 +249,26 @@ export async function syncDocumentAndPhotosFromServer(documentId: string): Promi
   }
 }
 
-export async function uploadPdfReportToNextcloud(documentId: string, pdfBlob: Blob, fileName: string): Promise<{ success: boolean; message: string }> {
+export async function uploadPdfReportToNextcloud(
+  documentId: string,
+  pdfBlob: Blob,
+  fileName: string
+): Promise<{ success: boolean; message: string }> {
   try {
     const formData = new FormData();
     formData.append('documentId', documentId);
     formData.append('pdfFile', pdfBlob, fileName);
 
-    const res = await fetch(`${getApiBaseUrl()}/api/nextcloud/upload-pdf`, {
-      method: 'POST',
-      body: formData,
-    });
+    const res = await fetchWithTimeout(
+      `${getApiBaseUrl()}/api/nextcloud/upload-pdf`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+      90_000
+    );
 
-    const data = await res.json();
-    return data;
+    return await res.json();
   } catch (err: any) {
     return { success: false, message: err.message || 'Gagal mengunggah PDF ke Nextcloud' };
   }
@@ -216,7 +282,9 @@ export async function getNextcloudStatus(): Promise<{
   queue: { pending: number; synced: number; failed: number };
 }> {
   try {
-    const res = await fetch(`${getApiBaseUrl()}/api/nextcloud/status`);
+    const res = await fetchWithTimeout(`${getApiBaseUrl()}/api/nextcloud/status`, {
+      cache: 'no-store',
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {

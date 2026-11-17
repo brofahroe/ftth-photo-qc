@@ -22,6 +22,7 @@ const slotLocks = new Map<string, SlotLock>(); // Key: "docId:pageId:slotIndex"
 export function setupSocketHandlers(io: SocketIOServer) {
   io.on('connection', (socket: Socket) => {
     console.log(`[Socket.io] Client connected: ${socket.id}`);
+    socket.join('workspace');
 
     // Join Document Room
     socket.on('join_document', ({ documentId, userName }: { documentId: string; userName: string }) => {

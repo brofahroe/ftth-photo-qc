@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Cloud, CheckCircle2, AlertCircle, RefreshCw, X, FolderCheck, HardDrive } from 'lucide-react';
 import { getNextcloudStatus } from '../services/apiSync';
 import { getApiBaseUrl } from '../services/serverUrl';
+import { syncAllWithServer } from '../services/syncQueue';
 
 interface NextcloudModalProps {
   onClose: () => void;
@@ -57,7 +58,9 @@ export const NextcloudModal: React.FC<NextcloudModalProps> = ({ onClose }) => {
   const handleSyncNow = async () => {
     setSyncing(true);
     try {
+      await syncAllWithServer();
       await fetch(`${getApiBaseUrl()}/api/nextcloud/sync-now`, { method: 'POST' });
+      await new Promise((r) => setTimeout(r, 800));
       await loadStatus();
     } finally {
       setSyncing(false);

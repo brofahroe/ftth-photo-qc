@@ -7,8 +7,11 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(getSocketBaseUrl(), {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 15000,
+      timeout: 30000,
       autoConnect: true,
     });
 

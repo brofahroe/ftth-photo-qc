@@ -126,11 +126,157 @@ export async function uploadLocalFileToNextcloud(
   return remoteFilePath;
 }
 
+export function buildNextcloudPaths(headerJsonOrObj: string | Record<string, any> | null | undefined, docTitleRaw?: string | null) {
+  let clusterName = 'GENERAL';
+  let clusterId = 'NOCLUSTER';
+  try {
+    const h =
+      typeof headerJsonOrObj === 'string'
+        ? JSON.parse(headerJsonOrObj || '{}')
+        : headerJsonOrObj || {};
+    if (h.clusterId) clusterId = String(h.clusterId).replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (h.clusterName) clusterName = String(h.clusterName).replace(/[^a-zA-Z0-9 _-]/g, '_');
+  } catch {
+    // fallback
+  }
+
+  const docTitle = (docTitleRaw || 'DOC').replace(/[^a-zA-Z0-9 _-]/g, '_');
+  const clusterDir = `${baseRemoteDir}/${clusterId}_${clusterName}`;
+  const docDir = `${clusterDir}/${docTitle}`;
+  const photosDir = `${docDir}/photos`;
+
+  return { clusterDir, docDir, photosDir };
+}
+
+export function queueNextcloudDeletion(remotePath: string, clusterDir?: string | null): void {
+  if (!remotePath) return;
+  const id = `del_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  db.prepare(`
+    INSERT INTO nextcloud_deletions (id, remote_path, cluster_dir, attempts, created_at)
+    VALUES (?, ?, ?, 0, ?)
+  `).run(id, remotePath, clusterDir || null, Date.now());
+}
+
+async function deleteRemotePathSafe(remotePath: string): Promise<void> {
+  if (!client || !remotePath) return;
+  try {
+    const exists = await client.exists(remotePath);
+    if (!exists) return;
+    await client.deleteFile(remotePath);
+  } catch (err: any) {
+    if (err?.status === 404) return;
+    throw err;
+  }
+}
+
+async function cleanupEmptyClusterDir(clusterDir: string): Promise<void> {
+  if (!client || !clusterDir) return;
+  try {
+    const exists = await client.exists(clusterDir);
+    if (!exists) return;
+    const contents = await client.getDirectoryContents(clusterDir);
+    if (Array.isArray(contents) && contents.length === 0) {
+      await client.deleteFile(clusterDir);
+      console.log(`[Nextcloud Sync] Folder cluster kosong dihapus: ${clusterDir}`);
+    }
+  } catch (err: any) {
+    if (err?.status !== 404) {
+      console.warn(`[Nextcloud Sync] Gagal cek folder cluster kosong ${clusterDir}:`, err?.message || err);
+    }
+  }
+}
+
 // Background queue worker
 let isProcessingQueue = false;
+let rerunRequested = false;
+
+export function triggerNextcloudSync(): void {
+  setTimeout(() => {
+    processNextcloudQueue().catch((err) => console.error('[Nextcloud Queue Error]', err));
+  }, 150);
+}
+
+async function processPendingDocumentFolders(): Promise<void> {
+  if (!client) return;
+  const pendingDocs = db.prepare(`
+    SELECT id, title, header_json, nextcloud_folder_path
+    FROM documents
+    WHERE nextcloud_folder_status IN ('pending', 'failed')
+    ORDER BY updated_at DESC
+    LIMIT 10
+  `).all() as any[];
+
+  for (const doc of pendingDocs) {
+    try {
+      const { clusterDir, docDir, photosDir } = buildNextcloudPaths(doc.header_json, doc.title);
+
+      // If renamed/moved and old folder exists while new doesn't, move it cleanly
+      if (doc.nextcloud_folder_path && doc.nextcloud_folder_path !== docDir) {
+        try {
+          const oldExists = await client.exists(doc.nextcloud_folder_path);
+          const newExists = await client.exists(docDir);
+          if (oldExists && !newExists) {
+            await ensureRemoteDir(clusterDir);
+            await client.moveFile(doc.nextcloud_folder_path, docDir);
+          }
+        } catch (moveErr: any) {
+          console.warn(`[Nextcloud Sync] Gagal memindahkan folder ${doc.nextcloud_folder_path} -> ${docDir}:`, moveErr?.message || moveErr);
+        }
+      }
+
+      await ensureRemoteDir(photosDir);
+
+      db.prepare(`
+        UPDATE documents
+        SET nextcloud_folder_path = ?, nextcloud_folder_status = 'synced', nextcloud_folder_error = NULL
+        WHERE id = ?
+      `).run(docDir, doc.id);
+
+      console.log(`[Nextcloud Sync] Folder dokumen siap: ${photosDir}`);
+    } catch (err: any) {
+      console.error(`[Nextcloud Sync] Gagal membuat folder dokumen ${doc.id}:`, err?.message || err);
+      db.prepare(`
+        UPDATE documents
+        SET nextcloud_folder_status = 'failed', nextcloud_folder_error = ?
+        WHERE id = ?
+      `).run(String(err?.message || err), doc.id);
+    }
+  }
+}
+
+async function processPendingDeletions(): Promise<void> {
+  if (!client) return;
+  const pendingDeletions = db.prepare(`
+    SELECT id, remote_path, cluster_dir, attempts
+    FROM nextcloud_deletions
+    WHERE attempts < 10
+    ORDER BY created_at ASC
+    LIMIT 10
+  `).all() as any[];
+
+  for (const item of pendingDeletions) {
+    try {
+      await deleteRemotePathSafe(item.remote_path);
+      if (item.cluster_dir) {
+        await cleanupEmptyClusterDir(item.cluster_dir);
+      }
+      db.prepare(`DELETE FROM nextcloud_deletions WHERE id = ?`).run(item.id);
+      console.log(`[Nextcloud Sync] Terhapus di Nextcloud: ${item.remote_path}`);
+    } catch (err: any) {
+      db.prepare(`
+        UPDATE nextcloud_deletions
+        SET attempts = attempts + 1, last_error = ?
+        WHERE id = ?
+      `).run(String(err?.message || err), item.id);
+    }
+  }
+}
 
 export async function processNextcloudQueue(): Promise<void> {
-  if (isProcessingQueue) return;
+  if (isProcessingQueue) {
+    rerunRequested = true;
+    return;
+  }
   if (!client) {
     initNextcloudClient();
     if (!client) return;
@@ -138,6 +284,8 @@ export async function processNextcloudQueue(): Promise<void> {
 
   isProcessingQueue = true;
   try {
+    await processPendingDocumentFolders();
+
     // Find up to 10 pending photo uploads
     const pendingPhotos = db.prepare(`
       SELECT p.*, d.title as doc_title, d.header_json
@@ -153,19 +301,7 @@ export async function processNextcloudQueue(): Promise<void> {
         // Mark as uploading
         db.prepare(`UPDATE photos SET nextcloud_status = 'uploading' WHERE id = ?`).run(photo.id);
 
-        let clusterName = 'GENERAL';
-        let clusterId = 'NOCLUSTER';
-        try {
-          if (photo.header_json) {
-            const h = JSON.parse(photo.header_json);
-            if (h.clusterId) clusterId = h.clusterId.replace(/[^a-zA-Z0-9_-]/g, '_');
-            if (h.clusterName) clusterName = h.clusterName.replace(/[^a-zA-Z0-9 _-]/g, '_');
-          }
-        } catch {
-          // fallback
-        }
-
-        const docTitle = (photo.doc_title || 'DOC').replace(/[^a-zA-Z0-9 _-]/g, '_');
+        const { photosDir } = buildNextcloudPaths(photo.header_json, photo.doc_title);
         // Prefer rendered file, fallback to raw
         const localFileName = photo.rendered_file_name || photo.raw_file_name;
         if (!localFileName) {
@@ -179,10 +315,7 @@ export async function processNextcloudQueue(): Promise<void> {
           continue;
         }
 
-        // Folder structure: /[BASE_DIR]/[ClusterId]_[ClusterName]/[DocTitle]/photos/[FileName]
-        const remoteFolderPath = `${baseRemoteDir}/${clusterId}_${clusterName}/${docTitle}/photos`;
-        const remoteFilePath = `${remoteFolderPath}/${localFileName}`;
-
+        const remoteFilePath = `${photosDir}/${localFileName}`;
         await uploadLocalFileToNextcloud(localFilePath, remoteFilePath);
 
         db.prepare(`
@@ -215,19 +348,8 @@ export async function processNextcloudQueue(): Promise<void> {
       try {
         db.prepare(`UPDATE pdf_exports SET nextcloud_status = 'uploading' WHERE id = ?`).run(pdf.id);
 
-        let clusterName = 'GENERAL';
-        let clusterId = 'NOCLUSTER';
-        try {
-          if (pdf.header_json) {
-            const h = JSON.parse(pdf.header_json);
-            if (h.clusterId) clusterId = h.clusterId.replace(/[^a-zA-Z0-9_-]/g, '_');
-            if (h.clusterName) clusterName = h.clusterName.replace(/[^a-zA-Z0-9 _-]/g, '_');
-          }
-        } catch {}
-
-        const docTitle = (pdf.doc_title || 'DOC').replace(/[^a-zA-Z0-9 _-]/g, '_');
-        const remoteFolderPath = `${baseRemoteDir}/${clusterId}_${clusterName}/${docTitle}`;
-        const remoteFilePath = `${remoteFolderPath}/${pdf.file_name}`;
+        const { docDir } = buildNextcloudPaths(pdf.header_json, pdf.doc_title);
+        const remoteFilePath = `${docDir}/${pdf.file_name}`;
 
         await uploadLocalFileToNextcloud(pdf.local_path, remoteFilePath);
 
@@ -246,14 +368,28 @@ export async function processNextcloudQueue(): Promise<void> {
         `).run(String(err?.message || err), pdf.id);
       }
     }
+
+    await processPendingDeletions();
   } finally {
     isProcessingQueue = false;
+    if (rerunRequested) {
+      rerunRequested = false;
+      triggerNextcloudSync();
+    }
   }
 }
 
 // Start queue interval (runs every 10 seconds)
 export function startNextcloudQueueWorker() {
   initNextcloudClient();
+  // Reset any uploads interrupted by a previous server restart/crash
+  try {
+    db.prepare(`UPDATE photos SET nextcloud_status = 'pending' WHERE nextcloud_status = 'uploading'`).run();
+    db.prepare(`UPDATE pdf_exports SET nextcloud_status = 'pending' WHERE nextcloud_status = 'uploading'`).run();
+  } catch {}
+  processNextcloudQueue().catch((err) => {
+    console.error('[Nextcloud Startup Worker Error]', err);
+  });
   setInterval(() => {
     processNextcloudQueue().catch((err) => {
       console.error('[Nextcloud Worker Error]', err);

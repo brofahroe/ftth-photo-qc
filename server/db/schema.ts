@@ -23,8 +23,25 @@ export function initDatabase() {
       header_json TEXT NOT NULL,
       pages_json TEXT NOT NULL,
       default_watermark_on_upload INTEGER DEFAULT 0,
+      nextcloud_folder_path TEXT,
+      nextcloud_folder_status TEXT DEFAULT 'pending',
+      nextcloud_folder_error TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS deleted_documents (
+      id TEXT PRIMARY KEY,
+      deleted_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS nextcloud_deletions (
+      id TEXT PRIMARY KEY,
+      remote_path TEXT NOT NULL,
+      cluster_dir TEXT,
+      attempts INTEGER DEFAULT 0,
+      last_error TEXT,
+      created_at INTEGER NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS photos (
@@ -76,4 +93,18 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_photos_doc ON photos(document_id);
     CREATE INDEX IF NOT EXISTS idx_photos_nextcloud ON photos(nextcloud_status);
   `);
+
+  // Safe migrations for existing SQLite databases
+  const docCols = (db.prepare(`PRAGMA table_info(documents)`).all() as Array<{ name: string }>).map(
+    (c) => c.name
+  );
+  if (!docCols.includes('nextcloud_folder_path')) {
+    db.exec(`ALTER TABLE documents ADD COLUMN nextcloud_folder_path TEXT;`);
+  }
+  if (!docCols.includes('nextcloud_folder_status')) {
+    db.exec(`ALTER TABLE documents ADD COLUMN nextcloud_folder_status TEXT DEFAULT 'pending';`);
+  }
+  if (!docCols.includes('nextcloud_folder_error')) {
+    db.exec(`ALTER TABLE documents ADD COLUMN nextcloud_folder_error TEXT;`);
+  }
 }
