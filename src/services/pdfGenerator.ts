@@ -616,3 +616,142 @@ export async function generateDocumentPdf(
   const filename = cleanName.toLowerCase().endsWith('.pdf') ? cleanName : `${cleanName}.pdf`;
   return { blob, filename };
 }
+
+export interface SplitPdfJob {
+  key: string;
+  label: string;
+  description: string;
+  filename: string;
+  pages: DocumentPage[];
+}
+
+function getWavelengthRank(page: DocumentPage): number {
+  const text = `${page.headerTopText}\n${page.headerBottomText}`;
+  if (/1310/i.test(text)) return 0;
+  if (/1550/i.test(text)) return 1;
+  return 2;
+}
+
+function extractFdtFromPage(page: DocumentPage): string {
+  const fdtLine = page.headerBottomText
+    .split('\n')
+    .find((line) => /\bFDT\b/i.test(line.trim()));
+  if (fdtLine) {
+    const cleaned = fdtLine
+      .trim()
+      .replace(/^FDT\s*/i, '')
+      .replace(/^\((.*)\)$/, '$1')
+      .trim();
+    if (cleaned) return cleaned;
+  }
+  return 'FDT';
+}
+
+function extractLineCodeFromFatPage(page: DocumentPage): string | null {
+  const lines = page.headerBottomText
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !/^\(?1310\s*nm\)?$/i.test(l) && !/^\(?1550\s*nm\)?$/i.test(l));
+  for (const line of lines) {
+    const match = line.match(/(?:^|[\s\-_/])(S\d{1,3})(?=$|[\s\-_/])/i);
+    if (match) {
+      return match[1].toUpperCase();
+    }
+  }
+  return null;
+}
+
+export function buildSplitPdfJobs(doc: QcDocument, customBaseTitle?: string): SplitPdfJob[] {
+  const baseTitle =
+    (customBaseTitle || doc.title || `FOTO ${doc.docType}`)
+      .replace(/\.pdf$/i, '')
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .trim() || `FOTO ${doc.docType}`;
+
+  const fdtGroups = new Map<string, DocumentPage[]>();
+  const lineGroups = new Map<string, DocumentPage[]>();
+  const otherPages: DocumentPage[] = [];
+
+  for (const page of doc.pages) {
+    if (page.preset === 'EL_INPUT_SPLITTER' || page.preset === 'EL_OUTPUT_SPLITTER') {
+      const fdt = extractFdtFromPage(page);
+      const list = fdtGroups.get(fdt) || [];
+      list.push(page);
+      fdtGroups.set(fdt, list);
+    } else if (page.preset === 'EL_OPM_FAT') {
+      const lineCode = extractLineCodeFromFatPage(page);
+      if (lineCode) {
+        const list = lineGroups.get(lineCode) || [];
+        list.push(page);
+        lineGroups.set(lineCode, list);
+      } else {
+        otherPages.push(page);
+      }
+    } else {
+      otherPages.push(page);
+    }
+  }
+
+  const jobs: SplitPdfJob[] = [];
+
+  // 1. Per-FDT documents: Input 1310, Input 1550, Output 1310, Output 1550
+  for (const [fdt, pages] of fdtGroups.entries()) {
+    const sorted = [...pages].sort((a, b) => {
+      const typeRankA = a.preset === 'EL_INPUT_SPLITTER' ? 0 : 1;
+      const typeRankB = b.preset === 'EL_INPUT_SPLITTER' ? 0 : 1;
+      if (typeRankA !== typeRankB) return typeRankA - typeRankB;
+
+      const wlDiff = getWavelengthRank(a) - getWavelengthRank(b);
+      if (wlDiff !== 0) return wlDiff;
+
+      const splitA = Number(a.headerBottomText.match(/OUTPUT SPLITTER\s+(\d+)/i)?.[1] || 0);
+      const splitB = Number(b.headerBottomText.match(/OUTPUT SPLITTER\s+(\d+)/i)?.[1] || 0);
+      return splitA - splitB;
+    });
+
+    jobs.push({
+      key: `fdt:${fdt}`,
+      label: `FDT (${fdt})`,
+      description: 'Input 1310 & 1550 + Output 1310 & 1550',
+      filename: `${baseTitle} - FDT ${fdt}.pdf`,
+      pages: sorted,
+    });
+  }
+
+  // 2. Per-Line FAT documents (S01, S02, ...): all 1310 first, then all 1550
+  const sortedLineKeys = Array.from(lineGroups.keys()).sort((a, b) => {
+    const numA = parseInt(a.replace(/\D+/g, ''), 10) || 0;
+    const numB = parseInt(b.replace(/\D+/g, ''), 10) || 0;
+    return numA !== numB ? numA - numB : a.localeCompare(b);
+  });
+
+  for (const lineCode of sortedLineKeys) {
+    const pages = lineGroups.get(lineCode) || [];
+    const sorted = [...pages].sort((a, b) => {
+      const wlDiff = getWavelengthRank(a) - getWavelengthRank(b);
+      if (wlDiff !== 0) return wlDiff;
+      return a.headerBottomText.localeCompare(b.headerBottomText, undefined, { numeric: true });
+    });
+
+    jobs.push({
+      key: `line:${lineCode}`,
+      label: `${lineCode} ALL`,
+      description: `Semua FAT line ${lineCode} (1310nm & 1550nm)`,
+      filename: `${baseTitle} - ${lineCode} ALL.pdf`,
+      pages: sorted,
+    });
+  }
+
+  // 3. Any remaining pages (if any)
+  if (otherPages.length > 0) {
+    jobs.push({
+      key: 'others',
+      label: 'Halaman Lainnya',
+      description: 'Halaman di luar grup FDT / Line S01..',
+      filename: `${baseTitle} - Lainnya.pdf`,
+      pages: otherPages,
+    });
+  }
+
+  return jobs;
+}

@@ -39,14 +39,16 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
   const sites = (dbSites.length > 0 ? dbSites : DEFAULT_SITE_REFERENCES).filter(
     (s) => Boolean(s.fdtId)
   );
+  const hasSelectedCluster = Boolean(clusterId?.trim() || clusterName?.trim());
   const clusterSites = sites.filter(
     (s) =>
-      (clusterId && s.clusterId === clusterId) ||
-      (clusterName && s.clusterName === clusterName)
+      clusterId
+        ? s.clusterId === clusterId
+        : clusterName
+          ? s.clusterName === clusterName
+          : false
   );
-  const otherSites = sites.filter(
-    (s) => !clusterSites.some((cs) => cs.id === s.id)
-  );
+  const availableFdtSites = hasSelectedCluster ? clusterSites : sites;
   const defaultPreset: PagePresetType =
     docType === 'CW'
       ? 'CW_FAT'
@@ -297,31 +299,20 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                       ? 'Label Pole SF (bisa ketik beberapa label, dipisah koma/baris baru)'
                       : 'Pilih Kode FDT dari Tabel Referensi'}
                 </label>
-                {preset === 'CW_FDT' && sites.length > 0 && (
+                {preset === 'CW_FDT' && availableFdtSites.length > 0 && (
                   <select
-                    value={sites.some((s) => s.fdtId === deviceCodesInput) ? deviceCodesInput : ''}
+                    value={availableFdtSites.some((s) => s.fdtId === deviceCodesInput) ? deviceCodesInput : ''}
                     onChange={(e) => {
                       if (e.target.value) setDeviceCodesInput(e.target.value);
                     }}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-blue-900 mb-2 focus:border-blue-600 focus:outline-none"
                   >
-                    <option value="">-- Pilih Kode FDT dari Sitelist --</option>
-                    {clusterSites.length > 0 && (
-                      <optgroup label={`FDT di Cluster ${clusterName || clusterId}`}>
-                        {clusterSites.map((s) => (
-                          <option key={s.id} value={s.fdtId}>
-                            {s.fdtId} ({s.clusterName})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    <optgroup label="Semua Kode FDT">
-                      {otherSites.map((s) => (
-                        <option key={s.id} value={s.fdtId}>
-                          {s.fdtId} — {s.clusterName} ({s.clusterId})
-                        </option>
-                      ))}
-                    </optgroup>
+                    <option value="">-- Pilih Kode FDT Cluster {clusterName || clusterId || ''} --</option>
+                    {availableFdtSites.map((s) => (
+                      <option key={s.id} value={s.fdtId}>
+                        {s.fdtId} ({s.clusterName})
+                      </option>
+                    ))}
                   </select>
                 )}
                 <textarea
@@ -401,29 +392,18 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div className={preset === 'EL_OUTPUT_SPLITTER' ? '' : 'col-span-2'}>
                     <label className="block text-xs font-medium text-slate-700 mb-1">Kode FDT</label>
-                    {sites.length > 0 ? (
+                    {availableFdtSites.length > 0 ? (
                       <select
                         value={fdtCode}
                         onChange={(e) => setFdtCode(e.target.value)}
                         className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-blue-900 focus:border-blue-600 focus:outline-none"
                       >
-                        {clusterSites.length > 0 && (
-                          <optgroup label={`FDT di Cluster ${clusterName || clusterId}`}>
-                            {clusterSites.map((s) => (
-                              <option key={s.id} value={s.fdtId}>
-                                {s.fdtId} ({s.clusterName})
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        <optgroup label="Semua Kode FDT">
-                          {otherSites.map((s) => (
-                            <option key={s.id} value={s.fdtId}>
-                              {s.fdtId} — {s.clusterName}
-                            </option>
-                          ))}
-                        </optgroup>
-                        {fdtCode && !sites.some((s) => s.fdtId === fdtCode) && (
+                        {availableFdtSites.map((s) => (
+                          <option key={s.id} value={s.fdtId}>
+                            {s.fdtId} ({s.clusterName})
+                          </option>
+                        ))}
+                        {fdtCode && !availableFdtSites.some((s) => s.fdtId === fdtCode) && (
                           <option value={fdtCode}>{fdtCode}</option>
                         )}
                       </select>

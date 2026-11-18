@@ -1178,23 +1178,23 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               {/* Page Controls & Action Toolbar */}
               <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-2xs space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="space-y-1.5 flex-1 min-w-[220px]">
+                  <div className="space-y-1.5 flex-1 min-w-[260px]">
                     <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       Judul Sel Tengah Halaman {safePageIdx + 1} (Tercetak di Header PDF)
                     </div>
                     {activePage.mergeMiddleHeader ? (
                       <textarea
-                        rows={2}
+                        rows={5}
                         value={activePage.headerTopText}
                         onChange={(e) =>
                           handleUpdatePageText(activePage.id, {
                             headerTopText: e.target.value,
                           })
                         }
-                        className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
+                        className="w-full max-w-xl rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold leading-snug text-slate-900 focus:border-blue-600 focus:outline-none"
                       />
                     ) : (
-                      <div className="flex flex-wrap sm:flex-nowrap gap-2 max-w-lg">
+                      <div className="flex flex-wrap sm:flex-nowrap items-start gap-2 max-w-xl">
                         <input
                           type="text"
                           value={activePage.headerTopText}
@@ -1204,10 +1204,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             })
                           }
                           placeholder="PHOTO"
-                          className="w-24 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-bold text-center text-slate-900 focus:border-blue-600 focus:outline-none"
+                          className="w-24 shrink-0 rounded-lg border border-slate-300 px-2.5 py-2 text-xs font-bold text-center text-slate-900 focus:border-blue-600 focus:outline-none"
                         />
                         <textarea
-                          rows={2}
+                          rows={5}
                           value={activePage.headerBottomText}
                           onChange={(e) =>
                             handleUpdatePageText(activePage.id, {
@@ -1215,7 +1215,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             })
                           }
                           placeholder="Contoh: FAT S01-A01"
-                          className="flex-1 rounded-lg border border-slate-300 px-3 py-1 text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
+                          className="w-full flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold leading-snug text-slate-900 focus:border-blue-600 focus:outline-none"
                         />
                       </div>
                     )}

@@ -99,8 +99,12 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
       setClusterName(found.clusterName);
       if (found.region) setRegion(found.region);
       if (found.oltName) setOltName(found.oltName);
-      if (found.fdtIds.length > 0 && !found.fdtIds.includes(firstDeviceCode)) {
-        setFirstDeviceCode(found.fdtIds[0]);
+      if (found.fdtIds.length > 0) {
+        if (!found.fdtIds.includes(firstDeviceCode)) {
+          setFirstDeviceCode(found.fdtIds[0]);
+        }
+      } else {
+        setFirstDeviceCode('');
       }
     }
   };
@@ -112,8 +116,12 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
       setClusterId(found.clusterId);
       if (found.region) setRegion(found.region);
       if (found.oltName) setOltName(found.oltName);
-      if (found.fdtIds.length > 0 && !found.fdtIds.includes(firstDeviceCode)) {
-        setFirstDeviceCode(found.fdtIds[0]);
+      if (found.fdtIds.length > 0) {
+        if (!found.fdtIds.includes(firstDeviceCode)) {
+          setFirstDeviceCode(found.fdtIds[0]);
+        }
+      } else {
+        setFirstDeviceCode('');
       }
     }
   };
@@ -134,17 +142,26 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
     setOltName(source.header.oltName || '');
     setClusterName(source.header.clusterName || '');
     setClusterId(source.header.clusterId || '');
+    const matchedCluster = lookups.clusters.find(
+      (c) =>
+        (source.header.clusterId && c.clusterId === source.header.clusterId) ||
+        (source.header.clusterName && c.clusterName === source.header.clusterName)
+    );
+    if (matchedCluster) {
+      setFirstDeviceCode(matchedCluster.fdtIds[0] || '');
+    }
   };
 
-  // FDTs belonging to currently selected cluster vs others
+  // FDTs belonging only to the currently selected cluster
+  const hasSelectedCluster = Boolean(clusterId.trim() || clusterName.trim());
   const clusterFdtSites = sites.filter(
     (s) =>
       s.fdtId &&
-      ((clusterId && s.clusterId === clusterId) ||
-        (clusterName && s.clusterName === clusterName))
-  );
-  const otherFdtSites = sites.filter(
-    (s) => s.fdtId && !clusterFdtSites.some((cf) => cf.id === s.id)
+      (clusterId
+        ? s.clusterId === clusterId
+        : clusterName
+          ? s.clusterName === clusterName
+          : false)
   );
   const headerEntityLabel =
     docType === 'CW_SF' || docType === 'EL_SF' ? 'Subfeeder' : 'Cluster';
@@ -520,26 +537,32 @@ export const NewDocumentModal: React.FC<NewDocumentModalProps> = ({
                       onChange={(e) => handleSelectFdtCode(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-blue-900 focus:border-blue-600 focus:outline-none"
                     >
-                      {clusterFdtSites.length > 0 && (
-                        <optgroup
-                          label={`FDT di Cluster ${clusterName || clusterId} (${clusterFdtSites.length})`}
-                        >
-                          {clusterFdtSites.map((s) => (
+                      {hasSelectedCluster ? (
+                        clusterFdtSites.length > 0 ? (
+                          clusterFdtSites.map((s) => (
                             <option key={s.id} value={s.fdtId}>
                               {s.fdtId} ({s.clusterName} • HP: {s.hpDrm || '-'})
                             </option>
-                          ))}
-                        </optgroup>
-                      )}
-                      <optgroup label="Semua Kode FDT di Sitelist">
-                        {otherFdtSites.map((s) => (
-                          <option key={s.id} value={s.fdtId}>
-                            {s.fdtId} — {s.clusterName} ({s.clusterId})
+                          ))
+                        ) : (
+                          <option value="">
+                            -- Tidak ada Kode FDT di cluster ini --
                           </option>
-                        ))}
-                      </optgroup>
+                        )
+                      ) : (
+                        <>
+                          <option value="">-- Pilih Cluster terlebih dahulu --</option>
+                          {lookups.fdtList.map((s) => (
+                            <option key={s.id} value={s.fdtId}>
+                              {s.fdtId} — {s.clusterName} ({s.clusterId})
+                            </option>
+                          ))}
+                        </>
+                      )}
                       {firstDeviceCode &&
-                        !lookups.fdtList.some((s) => s.fdtId === firstDeviceCode) && (
+                        !(hasSelectedCluster ? clusterFdtSites : lookups.fdtList).some(
+                          (s) => s.fdtId === firstDeviceCode
+                        ) && (
                           <option value={firstDeviceCode}>{firstDeviceCode}</option>
                         )}
                     </select>

@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import JSZip from 'jszip';
 import {
   AlertCircle,
+  Archive,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -9,6 +11,7 @@ import {
   Eye,
   FileDown,
   FileText,
+  Layers,
   Loader2,
   Share2,
   X,
@@ -18,7 +21,11 @@ import {
 import { DEFAULT_MORA_LOGO, DEFAULT_ZTE_LOGO } from '../assets/defaultLogos';
 import { db } from '../db/database';
 import { getPageDisplayName } from '../presets/documentPresets';
-import { generateDocumentPdf, PdfExportProgress } from '../services/pdfGenerator';
+import {
+  buildSplitPdfJobs,
+  generateDocumentPdf,
+  PdfExportProgress,
+} from '../services/pdfGenerator';
 import { PDF_QUALITY_CONFIG } from '../services/watermark';
 import { PdfQualityPreset, PhotoRecord, QcDocument } from '../types';
 import { uploadPdfReportToNextcloud } from '../services/apiSync';
@@ -59,6 +66,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
 
   const [quality, setQuality] = useState<PdfQualityPreset>('standard');
   const [fileName, setFileName] = useState<string>(doc.title || `FOTO ${doc.docType}`);
+  const [exportMode, setExportMode] = useState<'SINGLE' | 'SPLIT'>('SINGLE');
   const [previewPageIdx, setPreviewPageIdx] = useState<number>(initialPageIdx);
   const [previewZoom, setPreviewZoom] = useState<number>(1);
   const [viewMode, setViewMode] = useState<'SHEET' | 'PDF_EMBED'>('SHEET');
@@ -70,7 +78,33 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
     filename: string;
     url: string;
   } | null>(null);
+  const [splitResults, setSplitResults] = useState<
+    Array<{
+      key: string;
+      label: string;
+      filename: string;
+      blob: Blob;
+      url: string;
+      pageCount: number;
+    }>
+  >([]);
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  const canSplitPdf = useMemo(
+    () =>
+      doc.pages.some(
+        (p) =>
+          p.preset === 'EL_INPUT_SPLITTER' ||
+          p.preset === 'EL_OUTPUT_SPLITTER' ||
+          p.preset === 'EL_OPM_FAT'
+      ),
+    [doc.pages]
+  );
+
+  const splitJobs = useMemo(
+    () => (canSplitPdf ? buildSplitPdfJobs(doc, fileName) : []),
+    [canSplitPdf, doc, fileName]
+  );
 
   useEffect(() => {
     return () => {
@@ -79,6 +113,14 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
       }
     };
   }, [generatedPdf]);
+
+  useEffect(() => {
+    return () => {
+      for (const item of splitResults) {
+        URL.revokeObjectURL(item.url);
+      }
+    };
+  }, [splitResults]);
 
   const totalSlots = doc.pages.reduce((sum, p) => sum + p.slots.length, 0);
   const filledSlots = doc.pages.reduce(
@@ -101,7 +143,97 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
+  const buildSplitPdfsInMemory = async (autoDownload: boolean) => {
+    if (splitJobs.length === 0) return;
+    setExporting(true);
+    setErrorMsg('');
+    try {
+      const cleanBaseTitle = fileName.trim() || doc.title;
+      if (cleanBaseTitle !== doc.title) {
+        onUpdateTitle(cleanBaseTitle);
+      }
+
+      const nextResults: Array<{
+        key: string;
+        label: string;
+        filename: string;
+        blob: Blob;
+        url: string;
+        pageCount: number;
+      }> = [];
+
+      for (let idx = 0; idx < splitJobs.length; idx++) {
+        const job = splitJobs[idx];
+        const subDoc: QcDocument = {
+          ...doc,
+          title: job.filename.replace(/\.pdf$/i, ''),
+          pages: job.pages,
+        };
+        const res = await generateDocumentPdf(subDoc, quality, (p) =>
+          setProgress({
+            currentStep: idx * p.totalSteps + p.currentStep,
+            totalSteps: splitJobs.length * p.totalSteps,
+            message: `[${idx + 1}/${splitJobs.length}] ${job.label}: ${p.message}`,
+          })
+        );
+        const url = URL.createObjectURL(res.blob);
+        nextResults.push({
+          key: job.key,
+          label: job.label,
+          filename: job.filename,
+          blob: res.blob,
+          url,
+          pageCount: job.pages.length,
+        });
+
+        uploadPdfReportToNextcloud(doc.id, res.blob, job.filename).catch((e) =>
+          console.warn('[Nextcloud] Upload Split PDF error:', e)
+        );
+      }
+
+      setSplitResults(nextResults);
+      if (nextResults.length > 0) {
+        setGeneratedPdf({
+          blob: nextResults[0].blob,
+          filename: nextResults[0].filename,
+          url: URL.createObjectURL(nextResults[0].blob),
+        });
+      }
+
+      if (autoDownload) {
+        if (nextResults.length === 1) {
+          triggerDownload(nextResults[0].blob, nextResults[0].filename);
+        } else if (nextResults.length > 1) {
+          await downloadSplitResultsAsZip(nextResults, cleanBaseTitle);
+        }
+      } else if (nextResults.length > 0) {
+        setViewMode('PDF_EMBED');
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Gagal membuat file Split PDF.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const downloadSplitResultsAsZip = async (
+    items: Array<{ filename: string; blob: Blob }>,
+    baseTitle: string
+  ) => {
+    const zip = new JSZip();
+    for (const item of items) {
+      zip.file(item.filename, item.blob);
+    }
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+    const safeZipName =
+      baseTitle.replace(/\.pdf$/i, '').replace(/[\\/:*?"<>|]+/g, '-').trim() || `FOTO ${doc.docType}`;
+    triggerDownload(zipBlob, `${safeZipName} - Split PDF.zip`);
+  };
+
   const buildPdfInMemory = async (autoDownload: boolean) => {
+    if (exportMode === 'SPLIT' && canSplitPdf) {
+      return buildSplitPdfsInMemory(autoDownload);
+    }
     setExporting(true);
     setErrorMsg('');
     try {
@@ -483,10 +615,83 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                   onChange={(e) => {
                     setFileName(e.target.value);
                     setGeneratedPdf(null);
+                    setSplitResults([]);
                   }}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium focus:border-emerald-600 focus:outline-none"
                 />
               </div>
+
+              {canSplitPdf && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Mode Susunan Dokumen PDF
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMode('SINGLE');
+                        setGeneratedPdf(null);
+                        setSplitResults([]);
+                      }}
+                      className={`rounded-xl border p-2.5 text-left transition ${
+                        exportMode === 'SINGLE'
+                          ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="text-xs font-bold text-slate-900">1 PDF Utuh</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        Semua {doc.pages.length} halaman digabung
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMode('SPLIT');
+                        setGeneratedPdf(null);
+                        setSplitResults([]);
+                      }}
+                      className={`rounded-xl border p-2.5 text-left transition ${
+                        exportMode === 'SPLIT'
+                          ? 'border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 text-xs font-bold text-slate-900">
+                        <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                        Split PDF ({splitJobs.length})
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        Per-FDT & per-Line (S01, S02...)
+                      </div>
+                    </button>
+                  </div>
+
+                  {exportMode === 'SPLIT' && splitJobs.length > 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 space-y-1.5 max-h-40 overflow-y-auto">
+                      {splitJobs.map((job, idx) => (
+                        <div
+                          key={job.key}
+                          className="flex items-center justify-between gap-2 rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[11px]"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 truncate">
+                              {idx + 1}. {job.label}
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate">
+                              {job.description}
+                            </div>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                            {job.pages.length} hal
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">
@@ -537,7 +742,68 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                 </div>
               )}
 
-              {generatedPdf && !exporting && (
+              {exportMode === 'SPLIT' && splitResults.length > 0 && !exporting && (
+                <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{splitResults.length} File PDF siap!</span>
+                    </div>
+                    {splitResults.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadSplitResultsAsZip(splitResults, fileName.trim() || doc.title)
+                        }
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
+                      >
+                        <Archive className="w-3 h-3" />
+                        Download .ZIP
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {splitResults.map((item) => (
+                      <div
+                        key={item.key}
+                        className="flex items-center justify-between gap-2 rounded-lg bg-white border border-emerald-200 px-2.5 py-1.5 text-[11px]"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 truncate">{item.label}</div>
+                          <div className="text-[10px] text-slate-500">
+                            {item.pageCount} hal • {Math.round(item.blob.size / 1024)} KB
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGeneratedPdf({
+                                blob: item.blob,
+                                filename: item.filename,
+                                url: URL.createObjectURL(item.blob),
+                              });
+                              setViewMode('PDF_EMBED');
+                            }}
+                            className="rounded-md border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => triggerDownload(item.blob, item.filename)}
+                            className="rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700"
+                          >
+                            Unduh
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {exportMode === 'SINGLE' && generatedPdf && !exporting && (
                 <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
@@ -589,10 +855,25 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                 type="button"
                 disabled={exporting}
                 onClick={() => {
+                  if (exportMode === 'SPLIT' && canSplitPdf) {
+                    if (splitResults.length > 0) {
+                      if (splitResults.length === 1) {
+                        triggerDownload(splitResults[0].blob, splitResults[0].filename);
+                      } else {
+                        void downloadSplitResultsAsZip(
+                          splitResults,
+                          fileName.trim() || doc.title
+                        );
+                      }
+                    } else {
+                      void buildPdfInMemory(true);
+                    }
+                    return;
+                  }
                   if (generatedPdf) {
                     triggerDownload(generatedPdf.blob, generatedPdf.filename);
                   } else {
-                    buildPdfInMemory(true);
+                    void buildPdfInMemory(true);
                   }
                 }}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50 transition"
@@ -605,7 +886,13 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                 ) : (
                   <>
                     <FileDown className="w-4 h-4" />
-                    {generatedPdf ? 'Download File PDF Sekarang' : 'Convert & Download PDF'}
+                    {exportMode === 'SPLIT' && canSplitPdf
+                      ? splitResults.length > 0
+                        ? `Download Split PDF (${splitResults.length})`
+                        : `Convert & Download Split PDF (${splitJobs.length})`
+                      : generatedPdf
+                        ? 'Download File PDF Sekarang'
+                        : 'Convert & Download PDF'}
                   </>
                 )}
               </button>
